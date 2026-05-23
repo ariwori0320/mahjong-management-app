@@ -116,10 +116,49 @@ tr:last-child td { border-bottom: none; }
 
 /* Section title */
 .sec-label { font-size: 11px; color: var(--text2); font-weight: 600; margin-bottom: 6px; }
+
+/* Action buttons (edit/delete in history rows) */
+.act-btn { border: none; background: none; cursor: pointer; padding: 3px 4px; font-size: 13px; line-height: 1; opacity: .5; }
+.act-btn:hover { opacity: 1; }
+
+/* Edit modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 200; align-items: center; justify-content: center; padding: 16px; }
+.modal-overlay.on { display: flex; }
+.modal { background: var(--bg); border-radius: 14px; padding: 20px; width: 100%; max-width: 400px; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 40px rgba(0,0,0,.25); }
+.modal-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+.modal-footer { display: flex; gap: 8px; margin-top: 16px; }
+.del-btn { background: var(--red); color: #fff; border: none; border-radius: 8px; padding: 10px 14px; font-size: 13px; cursor: pointer; font-family: var(--font); font-weight: 600; }
+.cls-btn { background: var(--bg2); color: var(--text2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 13px; cursor: pointer; font-family: var(--font); }
 </style>
 </head>
 <body>
 <div class="app" id="root"></div>
+
+<!-- 編集モーダル -->
+<div class="modal-overlay" id="edit-modal" onclick="if(event.target===this)closeEditModal()">
+  <div class="modal">
+    <div class="modal-title">✏️ データを編集</div>
+    <div class="fg">
+      <div class="ff"><label>日付</label><input type="date" id="e-date"></div>
+      <div class="ff"><label>場所</label>
+        <select id="e-place" onchange="toggleEditCustom()">
+          <option>セット</option><option>フリー</option><option>ロケット団</option>
+          <option>雀魂</option><option>日本オープン</option><option>ZENTSU大会</option>
+          <option value="__custom__">その他...</option>
+        </select>
+      </div>
+      <div class="ff" id="e-custom-wrap" style="display:none"><label>場所名</label><input type="text" id="e-custom" placeholder="場所名を入力"></div>
+      <div class="ff"><label>種別</label><select id="e-type"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
+      <div class="ff"><label>順位</label><select id="e-rank"><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select></div>
+      <div class="ff"><label>持ち点</label><input type="number" id="e-score" placeholder="例: 35000"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="sub" style="flex:1" onclick="saveEdit()">保存</button>
+      <button class="cls-btn" onclick="closeEditModal()">キャンセル</button>
+      <button class="del-btn" onclick="deleteFromEdit()">削除</button>
+    </div>
+  </div>
+</div>
 
 <script>
 // ===== DATA (初期データ 438件) =====
@@ -134,12 +173,21 @@ const INITIAL_DATA = [...D1,...D2,...D3,...D4,...D5];
 const LS_KEY = 'mahjong_data_v1';
 const LS_API  = 'mahjong_apikey_v1';
 
+let _nextId = 1;
+function ensureIds(data) {
+  data.forEach(r => {
+    if (!r._id) { r._id = _nextId++; }
+    else { _nextId = Math.max(_nextId, r._id + 1); }
+  });
+  return data;
+}
+
 function loadData() {
   try {
     const saved = localStorage.getItem(LS_KEY);
-    if (saved) return JSON.parse(saved);
+    if (saved) return ensureIds(JSON.parse(saved));
   } catch(e) {}
-  return [...INITIAL_DATA];
+  return ensureIds([...INITIAL_DATA]);
 }
 function saveData() {
   try { localStorage.setItem(LS_KEY, JSON.stringify(DATA)); } catch(e) {}
@@ -189,12 +237,18 @@ function metHTML(s) {
 function scoreCell(score) {
   return `<td class="${score>=25000?'g':'r'}">${fmt(score)}</td>`;
 }
-function rowHTML(r) {
-  return `<tr><td>${r.date.replace('2026-','')}</td><td>${r.place}</td><td style="font-size:11px">${r.type}</td><td><span class="bk b${r.rank_num}">${r.rank_num}</span></td>${scoreCell(r.score)}</tr>`;
+function rowHTML(r, editable=false) {
+  const acts = editable
+    ? `<td style="white-space:nowrap"><button class="act-btn" title="編集" onclick="openEdit(${r._id})">✏️</button><button class="act-btn" title="削除" onclick="deleteRecord(${r._id})">🗑</button></td>`
+    : '';
+  return `<tr><td>${r.date.replace('2026-','')}</td><td>${r.place}</td><td style="font-size:11px">${r.type}</td><td><span class="bk b${r.rank_num}">${r.rank_num}</span></td>${scoreCell(r.score)}${acts}</tr>`;
 }
 
 function renderDash() {
-  const t=$('dt').value, p=$('dp').value, d=filt(DATA,t,p), s=stats(d);
+  const t=$('dt').value, p=$('dp').value, mo=$('d-month')?$('d-month').value:'all';
+  let d = filt(DATA,t,p);
+  if (mo !== 'all') d = d.filter(r => r.date.startsWith(mo));
+  const s=stats(d);
   $('dm').innerHTML = metHTML(s);
   rdist('dr', s);
   if (plChart) plChart.destroy();
@@ -216,7 +270,7 @@ function renderHist() {
   const tp=Math.ceil(fd.length/PAGE);
   if(histPage>tp) histPage=Math.max(1,tp);
   const pg=fd.slice((histPage-1)*PAGE, histPage*PAGE);
-  $('ht-wrap').innerHTML = `<div class="tbl-wrap"><table><thead><tr><th style="width:68px">日付</th><th>場所</th><th style="width:44px">種別</th><th style="width:40px">順位</th><th style="width:90px">持ち点</th></tr></thead><tbody>${pg.map(rowHTML).join('')||'<tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px">データなし</td></tr>'}</tbody></table></div>`;
+  $('ht-wrap').innerHTML = `<div class="tbl-wrap"><table><thead><tr><th style="width:68px">日付</th><th>場所</th><th style="width:44px">種別</th><th style="width:40px">順位</th><th style="width:90px">持ち点</th><th style="width:52px"></th></tr></thead><tbody>${pg.map(r=>rowHTML(r,true)).join('')||'<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px">データなし</td></tr>'}</tbody></table></div>`;
   $('ht-pg').innerHTML = `<button class="pb" onclick="histPage--;renderHist()" ${histPage<=1?'disabled':''}>←</button><span>${histPage}/${tp||1}ページ（${fd.length}件）</span><button class="pb" onclick="histPage++;renderHist()" ${histPage>=tp?'disabled':''}>→</button>`;
 }
 function renderAdd() {
@@ -228,7 +282,7 @@ function doAdd() {
   const place=plEl.value==='__custom__'?$('a-custom').value.trim():plEl.value;
   const type=$('a-type').value, rn=parseInt($('a-rank').value), score=parseInt($('a-score').value)||0;
   if (!date||!place) { alert('日付と場所を入力してください'); return; }
-  DATA.push({date,place,type,rank_num:rn,score});
+  DATA.push({date,place,type,rank_num:rn,score,_id:_nextId++});
   saveData();
   $('a-score').value = '';
   $('add-ok').style.display = 'block';
@@ -244,6 +298,8 @@ function refreshFilters() {
   const hm=$('hm'), hmv=hm.value;
   hm.innerHTML='<option value="all">全て</option>'+ms.map(m=>`<option value="${m}">${parseInt(m.slice(5))}月</option>`).join('');
   hm.value=hmv;
+  const dm=$('d-month');
+  if (dm) { const dmv=dm.value; dm.innerHTML='<option value="all">全て</option>'+ms.map(m=>`<option value="${m}">${parseInt(m.slice(5))}月</option>`).join(''); dm.value=dmv; }
 }
 function renderMon() {
   const month=$('mm').value, type=$('mt').value;
@@ -272,6 +328,7 @@ function showPending(rows) {
 }
 function confirmImport() {
   const added = pendingRows.length;
+  pendingRows.forEach(r => { if (!r._id) r._id = _nextId++; });
   DATA.push(...pendingRows);
   saveData();
   pendingRows = [];
@@ -347,6 +404,73 @@ function saveApiKeyUI() {
   setTimeout(()=>$('api-saved-msg').style.display='none', 2000);
 }
 
+// ===== 編集・削除 =====
+const PLACES_PRESET = ['セット','フリー','ロケット団','雀魂','日本オープン','ZENTSU大会'];
+let editingId = null;
+
+function updateHeaderCount() {
+  $('hdr-cnt').textContent = `四麻${DATA.filter(r=>r.type==='四麻').length}件・三麻${DATA.filter(r=>r.type==='三麻').length}件・計${DATA.length}件`;
+}
+
+function openEdit(id) {
+  const r = DATA.find(x => x._id === id);
+  if (!r) return;
+  editingId = id;
+  $('e-date').value = r.date;
+  const isPreset = PLACES_PRESET.includes(r.place);
+  $('e-place').value = isPreset ? r.place : '__custom__';
+  $('e-custom').value = isPreset ? '' : r.place;
+  $('e-custom-wrap').style.display = isPreset ? 'none' : 'flex';
+  $('e-type').value = r.type;
+  $('e-rank').value = r.rank_num;
+  $('e-score').value = r.score;
+  $('edit-modal').classList.add('on');
+}
+
+function closeEditModal() {
+  editingId = null;
+  $('edit-modal').classList.remove('on');
+}
+
+function toggleEditCustom() {
+  $('e-custom-wrap').style.display = $('e-place').value === '__custom__' ? 'flex' : 'none';
+}
+
+function saveEdit() {
+  if (editingId === null) return;
+  const idx = DATA.findIndex(x => x._id === editingId);
+  if (idx === -1) return;
+  const date = $('e-date').value;
+  const plEl = $('e-place');
+  const place = plEl.value === '__custom__' ? $('e-custom').value.trim() : plEl.value;
+  const type = $('e-type').value;
+  const rank_num = parseInt($('e-rank').value);
+  const score = parseInt($('e-score').value) || 0;
+  if (!date || !place) { alert('日付と場所を入力してください'); return; }
+  DATA[idx] = {...DATA[idx], date, place, type, rank_num, score};
+  saveData();
+  closeEditModal();
+  renderHist();
+  if (tab === 'dashboard') renderDash();
+  refreshFilters();
+  updateHeaderCount();
+}
+
+function deleteRecord(id) {
+  if (!confirm('このデータを削除しますか？')) return;
+  DATA = DATA.filter(x => x._id !== id);
+  saveData();
+  if (editingId === id) closeEditModal();
+  renderHist();
+  if (tab === 'dashboard') renderDash();
+  refreshFilters();
+  updateHeaderCount();
+}
+
+function deleteFromEdit() {
+  if (editingId !== null) deleteRecord(editingId);
+}
+
 function showTab(name) {
   tab=name; histPage=1;
   document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
@@ -355,7 +479,6 @@ function showTab(name) {
   if(name==='dashboard') renderDash();
   else if(name==='history') renderHist();
   else if(name==='add') renderAdd();
-  else if(name==='monthly') renderMon();
 }
 
 function init() {
@@ -373,12 +496,13 @@ function init() {
   <button class="tab on" id="tab-dashboard" onclick="showTab('dashboard')">📊 ダッシュボード</button>
   <button class="tab" id="tab-history" onclick="showTab('history')">📋 対局履歴</button>
   <button class="tab" id="tab-add" onclick="showTab('add')">➕ データ追加</button>
-  <button class="tab" id="tab-monthly" onclick="showTab('monthly')">📅 月別分析</button>
 </div>
 
 <!-- ダッシュボード -->
 <div class="sec on" id="sec-dashboard">
   <div class="fr">
+    <span>月</span>
+    <select id="d-month" onchange="renderDash()"><option value="all">全て</option>${ms.map(m=>`<option value="${m}">${parseInt(m.slice(5))}月</option>`).join('')}</select>
     <span>種別</span>
     <select id="dt" onchange="renderDash()"><option value="all">全て</option><option value="四麻">四麻</option><option value="三麻">三麻</option></select>
     <span>場所</span>
@@ -476,20 +600,8 @@ function init() {
   <div id="add-rec"></div>
 </div>
 
-<!-- 月別分析 -->
-<div class="sec" id="sec-monthly">
-  <div class="fr">
-    <span>月</span><select id="mm" onchange="renderMon()">${ms.map(m=>`<option value="${m}">${parseInt(m.slice(5))}月</option>`).join('')}</select>
-    <span>種別</span><select id="mt" onchange="renderMon()"><option value="all">全て</option><option value="四麻">四麻</option><option value="三麻">三麻</option></select>
-  </div>
-  <div class="mts" id="mm-metrics"></div>
-  <div>
-    <div class="sec-label">順位分布</div>
-    <div id="mr"></div>
-  </div>
-</div>`;
+`;
 
-  $('mm').selectedIndex = ms.length - 1;
   renderDash();
 }
 
