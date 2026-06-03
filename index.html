@@ -151,14 +151,13 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ===== 定数 =====
-const LS_API     = 'mahjong_apikey_v1';
 const LS_MIGRATE = 'mahjong_data_v1';
 const PLACES_PRESET = ['セット','フリー','ロケット団','雀魂','日本オープン','ZENTSU大会'];
 const PAGE = 15;
 
 // ===== 状態 =====
 let DATA = [];
-let tab = 'dashboard', histPage = 1, pendingRows = [], editingId = null;
+let tab = 'dashboard', histPage = 1, editingId = null;
 let plChart = null, trChart = null;
 
 const fmt = n => Number(n).toLocaleString('ja-JP');
@@ -167,10 +166,6 @@ const $ = id => document.getElementById(id);
 // ===== ローディング =====
 function showLoading(msg) { $('loading-msg').textContent = msg || '読み込み中...'; $('app-loading').style.display = 'flex'; }
 function hideLoading() { $('app-loading').style.display = 'none'; }
-
-// ===== API Key =====
-function loadApiKey() { return localStorage.getItem(LS_API) || ''; }
-function saveApiKey(k) { localStorage.setItem(LS_API, k); }
 
 // ===== DB操作 =====
 async function fetchAll() {
@@ -458,67 +453,6 @@ function cancelCSV() {
   $('csv-status').style.display='none';
 }
 
-// ===== Upload / AI =====
-function setStatus(type,msg){ const el=$('upload-status'); el.style.display='block'; el.className='ustatus '+type; el.innerHTML=msg; }
-function clearStatus(){ const el=$('upload-status'); if(el) el.style.display='none'; }
-function showPending(rows){
-  pendingRows=rows;
-  const tbody=rows.map(r=>rowHTML(r,false)).join('');
-  $('upload-preview').innerHTML=`<div class="preview-wrap"><table><thead><tr><th>日付</th><th>場所</th><th>種別</th><th>順位</th><th>持ち点</th></tr></thead><tbody>${tbody}</tbody></table></div>`;
-  $('confirm-row').style.display='flex';
-}
-async function confirmImport(){
-  if(!pendingRows.length) return;
-  const added=pendingRows.length;
-  const btn=document.querySelector('.confirm-btn');
-  btn.disabled=true; btn.textContent='追加中...';
-  try {
-    await insertBatch(pendingRows);
-    DATA=await fetchAll();
-    pendingRows=[]; $('upload-preview').innerHTML=''; $('confirm-row').style.display='none';
-    setStatus('success',`✓ ${added}件を追加しました（合計${DATA.length}件）`);
-    renderAdd(); refreshFilters(); updateHeaderCount();
-  } catch(e){ setStatus('error','追加失敗: '+e.message); }
-  finally { btn.disabled=false; btn.textContent='✓ このデータを追加する'; }
-}
-function cancelImport(){ pendingRows=[]; $('upload-preview').innerHTML=''; $('confirm-row').style.display='none'; clearStatus(); }
-
-async function handleFile(file){
-  if(!file) return;
-  clearStatus(); $('upload-preview').innerHTML=''; $('confirm-row').style.display='none';
-  const isImage=file.type.startsWith('image/'), isExcel=file.name.match(/\.(xlsx|xls)$/i), isCsv=file.name.match(/\.csv$/i), isPdf=file.type==='application/pdf';
-  if(!isImage&&!isExcel&&!isCsv&&!isPdf){ setStatus('error','⚠ 対応形式: 画像・Excel・CSV・PDF'); return; }
-  const apiKey=loadApiKey();
-  if(!apiKey){ setStatus('error','⚠ Anthropic APIキーを設定してください'); return; }
-  setStatus('loading','🔍 AIがデータを解析中...');
-  try {
-    const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});
-    const mediaType=isExcel?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':isCsv?'text/csv':isPdf?'application/pdf':file.type;
-    const prompt=`麻雀成績データを抽出してください。以下のJSONのみを返してください（説明文不要）：\n[{"date":"YYYY-MM-DD","place":"場所名","type":"四麻 or 三麻","rank_num":1～4,"score":持ち点の整数}]\n・年が省略 → 2026年で補完\n・四麻/三麻（「4麻」「4人」も四麻に統一）\n・scoreはマイナスもそのまま整数\n・データなし → []`;
-    const content=isImage?[{type:'image',source:{type:'base64',media_type:mediaType,data:base64}},{type:'text',text:prompt}]:[{type:'document',source:{type:'base64',media_type:mediaType,data:base64}},{type:'text',text:prompt}];
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,messages:[{role:'user',content}]})});
-    if(!res.ok){ const e=await res.json(); throw new Error(e.error?.message||res.statusText); }
-    const data=await res.json();
-    const text=data.content?.map(c=>c.text||'').join('').trim();
-    const m=text.match(/\[[\s\S]*\]/);
-    if(!m) throw new Error('JSONが見つかりませんでした');
-    const rows=JSON.parse(m[0]);
-    if(!Array.isArray(rows)||rows.length===0){ setStatus('error','⚠ 対局データが見つかりませんでした'); return; }
-    const valid=rows.filter(r=>r.date&&r.place&&(r.type==='四麻'||r.type==='三麻')&&r.rank_num>=1&&r.rank_num<=4&&typeof r.score==='number');
-    if(!valid.length){ setStatus('error','⚠ 有効なデータが抽出できませんでした'); return; }
-    setStatus('success',`✅ ${valid.length}件を検出。確認して追加してください。`);
-    showPending(valid);
-  } catch(e){ setStatus('error','⚠ 解析失敗: '+e.message); }
-}
-
-function saveApiKeyUI(){
-  const key=$('api-key-input').value.trim();
-  if(!key){ alert('APIキーを入力してください'); return; }
-  saveApiKey(key);
-  $('api-key-input').value='••••••••••••'+key.slice(-4);
-  $('api-saved-msg').style.display='inline';
-  setTimeout(()=>$('api-saved-msg').style.display='none',2000);
-}
 
 // ===== タブ =====
 function showTab(name){
@@ -544,8 +478,6 @@ async function init(){
 
   const ps=places(), ms=months();
   const yn=DATA.filter(r=>r.type==='四麻').length, sn=DATA.filter(r=>r.type==='三麻').length;
-  const savedKey=loadApiKey();
-  const keyDisplay=savedKey?'••••••••••••'+savedKey.slice(-4):'';
   const today=new Date().toISOString().slice(0,10);
   const hasLocalData=!!localStorage.getItem(LS_MIGRATE);
 
@@ -607,16 +539,6 @@ async function init(){
     <button class="sub" style="width:auto;padding:8px 18px;font-size:13px" onclick="runMigration()">クラウドに移行する</button>
   </div>` : ''}
 
-  <div class="api-section">
-    <label>🔑 Anthropic APIキー（ファイル取り込み機能に必要）</label>
-    <div class="api-row">
-      <input type="password" id="api-key-input" placeholder="sk-ant-..." value="${keyDisplay}">
-      <button class="api-save" onclick="saveApiKeyUI()">保存</button>
-      <span id="api-saved-msg" style="display:none;color:#1D9E75;font-size:12px;align-self:center">✓保存</span>
-    </div>
-    <div class="api-note">※ キーはこのブラウザにのみ保存されます。<a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#3266ad">APIキーの取得はこちら</a></div>
-  </div>
-
   <div class="af">
     <div class="af-title">📝 テキストから一括追加</div>
     <p style="font-size:12px;color:var(--text2);margin-bottom:8px">以下の形式でデータを入力・貼り付けてください（カンマ区切り）：</p>
@@ -632,26 +554,6 @@ async function init(){
     <div id="csv-confirm" class="confirm-row" style="display:none">
       <button class="confirm-btn" id="csv-import-btn" onclick="importCSV()">✓ このデータを追加する</button>
       <button class="cancel-btn" onclick="cancelCSV()">キャンセル</button>
-    </div>
-  </div>
-
-  <div class="af">
-    <div class="af-title">📁 ファイル・画像から自動取り込み</div>
-    <div class="upload-area" id="upload-drop"
-      ondragover="event.preventDefault();this.classList.add('drag')"
-      ondragleave="this.classList.remove('drag')"
-      ondrop="this.classList.remove('drag');handleFile(event.dataTransfer.files[0])"
-      onclick="$('file-input').click()">
-      <input type="file" id="file-input" accept="image/*,.xlsx,.xls,.csv,.pdf" onchange="handleFile(this.files[0])">
-      <div class="upload-icon">📂</div>
-      <div class="upload-title">タップまたはドラッグ&ドロップ</div>
-      <div class="upload-sub">画像（スクリーンショット等）・Excel・CSV・PDF</div>
-    </div>
-    <div id="upload-status" class="ustatus" style="display:none"></div>
-    <div id="upload-preview"></div>
-    <div id="confirm-row" class="confirm-row" style="display:none">
-      <button class="confirm-btn" onclick="confirmImport()">✓ このデータを追加する</button>
-      <button class="cancel-btn" onclick="cancelImport()">キャンセル</button>
     </div>
   </div>
 
