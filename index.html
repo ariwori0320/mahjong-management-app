@@ -190,14 +190,14 @@ function hideLoading() { $('app-loading').style.display = 'none'; }
 
 // ===== DB操作 =====
 async function fetchAll() {
-  const { data, error } = await sb.from('games').select('*')
+  const { data, error } = await sb.from('management_games').select('*')
     .order('date', { ascending: true }).order('id', { ascending: true });
   if (error) throw error;
   return data || [];
 }
 
 async function insertOne(r) {
-  const { data, error } = await sb.from('games')
+  const { data, error } = await sb.from('management_games')
     .insert([{ date: r.date, place: r.place, type: r.type, rank_num: r.rank_num, score: r.score }])
     .select().single();
   if (error) throw error;
@@ -205,21 +205,21 @@ async function insertOne(r) {
 }
 
 async function updateOne(id, r) {
-  const { error } = await sb.from('games')
+  const { error } = await sb.from('management_games')
     .update({ date: r.date, place: r.place, type: r.type, rank_num: r.rank_num, score: r.score })
     .eq('id', id);
   if (error) throw error;
 }
 
 async function deleteOne(id) {
-  const { error } = await sb.from('games').delete().eq('id', id);
+  const { error } = await sb.from('management_games').delete().eq('id', id);
   if (error) throw error;
 }
 
 async function insertBatch(records) {
   const rows = records.map(r => ({ date: r.date, place: r.place, type: r.type, rank_num: r.rank_num, score: r.score }));
   for (let i = 0; i < rows.length; i += 500) {
-    const { error } = await sb.from('games').insert(rows.slice(i, i + 500));
+    const { error } = await sb.from('management_games').insert(rows.slice(i, i + 500));
     if (error) throw error;
   }
 }
