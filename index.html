@@ -152,7 +152,27 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ===== 定数 =====
 const LS_MIGRATE = 'mahjong_data_v1';
+const LS_CUSTOM_PLACES = 'mahjong_custom_places';
 const PLACES_PRESET = ['セット','フリー','ロケット団','雀魂','日本オープン','ZENTSU大会'];
+
+function loadCustomPlaces() {
+  try { return JSON.parse(localStorage.getItem(LS_CUSTOM_PLACES) || '[]'); } catch { return []; }
+}
+function saveCustomPlace(place) {
+  if (PLACES_PRESET.includes(place)) return;
+  const list = loadCustomPlaces();
+  if (!list.includes(place)) { list.push(place); localStorage.setItem(LS_CUSTOM_PLACES, JSON.stringify(list)); }
+}
+function placeOptionHTML(selected) {
+  const custom = loadCustomPlaces();
+  return [...PLACES_PRESET, ...custom].map(p => `<option${selected===p?' selected':''}>${p}</option>`).join('')
+    + '<option value="__custom__">その他...</option>';
+}
+function refreshAddPlaceSelect(newPlace) {
+  const el = $('a-place'); if (!el) return;
+  el.innerHTML = placeOptionHTML(newPlace);
+  if (newPlace) { el.value = newPlace; $('a-custom-wrap').style.display = 'none'; }
+}
 const PAGE = 15;
 
 // ===== 状態 =====
@@ -285,8 +305,16 @@ function renderDash() {
   ]},{scales:{y:{reverse:true,min:1,max:4,ticks:{stepSize:0.5}}}});
 }
 function renderHist() {
-  const t=$('ht').value, p=$('hp').value, m=$('hm').value, r=$('hr').value, s=$('hs').value;
-  const fd=DATA.filter(x=>(t==='all'||x.type===t)&&(p==='all'||x.place===p)&&(m==='all'||x.date.startsWith(m))&&(r==='all'||x.rank_num===parseInt(r))&&(!s||x.date.includes(s))).slice().reverse();
+  const t=$('ht').value, p=$('hp').value, m=$('hm').value, r=$('hr').value;
+  const sf=$('hs-from')?$('hs-from').value:'', st=$('hs-to')?$('hs-to').value:'';
+  const fd=DATA.filter(x=>
+    (t==='all'||x.type===t) &&
+    (p==='all'||x.place===p) &&
+    (m==='all'||x.date.startsWith(m)) &&
+    (r==='all'||x.rank_num===parseInt(r)) &&
+    (!sf||x.date>=sf) &&
+    (!st||x.date<=st)
+  ).slice().reverse();
   const tp=Math.ceil(fd.length/PAGE);
   if(histPage>tp) histPage=Math.max(1,tp);
   const pg=fd.slice((histPage-1)*PAGE, histPage*PAGE);
@@ -310,6 +338,7 @@ async function doAdd() {
     const rec = await insertOne({date, place, type, rank_num:rn, score});
     DATA.push(rec);
     DATA.sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
+    if (plEl.value === '__custom__') { saveCustomPlace(place); refreshAddPlaceSelect(place); }
     $('a-score').value='';
     $('add-ok').style.display='block';
     setTimeout(()=>$('add-ok').style.display='none', 2500);
@@ -331,8 +360,9 @@ function refreshFilters() {
 function openEdit(id) {
   const r=DATA.find(x=>x.id===id); if(!r) return;
   editingId=id;
+  $('e-place').innerHTML = placeOptionHTML();
   $('e-date').value=r.date;
-  const isPreset=PLACES_PRESET.includes(r.place);
+  const isPreset=[...PLACES_PRESET,...loadCustomPlaces()].includes(r.place);
   $('e-place').value=isPreset?r.place:'__custom__';
   $('e-custom').value=isPreset?'':r.place;
   $('e-custom-wrap').style.display=isPreset?'none':'flex';
@@ -520,7 +550,9 @@ async function init(){
     <span>場所</span><select id="hp" onchange="histPage=1;renderHist()"><option value="all">全て</option>${ps.map(p=>`<option>${p}</option>`).join('')}</select>
     <span>月</span><select id="hm" onchange="histPage=1;renderHist()"><option value="all">全て</option>${ms.map(m=>`<option value="${m}">${parseInt(m.slice(5))}月</option>`).join('')}</select>
     <span>順位</span><select id="hr" onchange="histPage=1;renderHist()"><option value="all">全て</option><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select>
-    <input id="hs" type="text" placeholder="日付検索" style="width:100px" oninput="histPage=1;renderHist()">
+    <input type="date" id="hs-from" onchange="histPage=1;renderHist()" style="font-size:13px;min-height:36px">
+    <span>〜</span>
+    <input type="date" id="hs-to" onchange="histPage=1;renderHist()" style="font-size:13px;min-height:36px">
   </div>
   <div id="ht-wrap"></div>
   <div class="pg" id="ht-pg"></div>
@@ -558,11 +590,7 @@ async function init(){
     <div class="fg">
       <div class="ff"><label>日付</label><input type="date" id="a-date" value="${today}"></div>
       <div class="ff"><label>場所</label>
-        <select id="a-place" onchange="toggleCustom()">
-          <option>セット</option><option>フリー</option><option>ロケット団</option>
-          <option>雀魂</option><option>日本オープン</option><option>ZENTSU大会</option>
-          <option value="__custom__">その他...</option>
-        </select>
+        <select id="a-place" onchange="toggleCustom()">${placeOptionHTML()}</select>
       </div>
       <div class="ff" id="a-custom-wrap" style="display:none"><label>場所名</label><input type="text" id="a-custom" placeholder="場所名を入力"></div>
       <div class="ff"><label>種別</label><select id="a-type"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
