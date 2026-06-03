@@ -10,23 +10,23 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
-  --bg: #0d1b2e;
-  --bg2: #162338;
-  --border: #253a55;
-  --text: #e8eef5;
-  --text2: #7a9bbf;
-  --text3: #4a6080;
-  --blue: #c9a227;
-  --green: #1ab5a0;
-  --red: #e05c3a;
+  --bg: #141d2b;
+  --bg2: #1c2b3d;
+  --border: #2d4260;
+  --text: #f0f4f8;
+  --text2: #90a8c0;
+  --text3: #556d85;
+  --blue: #d4a843;
+  --green: #22c5b0;
+  --red: #f06748;
   --radius: 10px;
   --font: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
 .app { max-width: 680px; margin: 0 auto; padding: 16px 14px 80px; }
-.hdr { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-.hdr-logo { height: 38px; object-fit: contain; }
+.hdr { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.hdr-logo { height: 44px; object-fit: contain; max-width: 280px; }
 .hdr small { font-size: 12px; color: var(--text2); }
 .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 16px; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
@@ -60,7 +60,7 @@ tr:last-child td { border-bottom: none; }
 .fg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
 .ff { display: flex; flex-direction: column; gap: 4px; }
 .ff label { font-size: 12px; color: var(--text2); font-weight: 600; }
-.sub { background: var(--blue); color: #0d1b2e; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; cursor: pointer; font-weight: 700; font-family: var(--font); width: 100%; margin-top: 4px; }
+.sub { background: var(--blue); color: #141d2b; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; cursor: pointer; font-weight: 700; font-family: var(--font); width: 100%; margin-top: 4px; }
 .sub:disabled { opacity: .5; cursor: default; }
 .sub:active:not(:disabled) { filter: brightness(.88); }
 .ok { color: var(--green); font-size: 13px; margin-top: 8px; text-align: center; }
@@ -88,7 +88,7 @@ tr:last-child td { border-bottom: none; }
 .api-section label { font-size: 12px; color: var(--text2); font-weight: 600; display: block; margin-bottom: 6px; }
 .api-row { display: flex; gap: 8px; }
 .api-row input { flex: 1; font-size: 13px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-family: var(--font); }
-.api-save { padding: 7px 14px; font-size: 13px; background: var(--blue); color: #0d1b2e; font-weight: 700; border: none; border-radius: 8px; cursor: pointer; font-family: var(--font); white-space: nowrap; }
+.api-save { padding: 7px 14px; font-size: 13px; background: var(--blue); color: #141d2b; font-weight: 700; border: none; border-radius: 8px; cursor: pointer; font-family: var(--font); white-space: nowrap; }
 .api-note { font-size: 11px; color: var(--text3); margin-top: 5px; }
 .sec-label { font-size: 11px; color: var(--text2); font-weight: 600; margin-bottom: 6px; }
 .act-btn { border: none; background: none; cursor: pointer; padding: 3px 4px; font-size: 13px; line-height: 1; opacity: .5; }
@@ -274,9 +274,16 @@ function rdist(id, s) {
       </div>`;
     }).join('') + `</div>`;
 }
+const CHART_DEFAULTS = {
+  color: '#90a8c0',
+  grid: { color: 'rgba(255,255,255,0.07)' },
+  ticks: { color: '#90a8c0' }
+};
 function mkChart(id, type, data, opts) {
   const c = $('c-'+id); if (!c || !window.Chart) return null;
-  return new Chart(c, {type, data, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},...opts}});
+  const scaleDefaults = { grid: CHART_DEFAULTS.grid, ticks: CHART_DEFAULTS.ticks };
+  const baseOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:scaleDefaults, y:scaleDefaults} };
+  return new Chart(c, {type, data, options:{...baseOpts,...opts, scales:{...baseOpts.scales,...(opts.scales||{})}}});
 }
 function metHTML(s) {
   return `
@@ -309,8 +316,8 @@ function renderDash() {
   const yA=ms.map(m=>{const dd=DATA.filter(r=>r.date.slice(0,7)<=m&&r.type==='四麻');return dd.length?+(dd.reduce((s,r)=>s+r.rank_num,0)/dd.length).toFixed(2):null});
   const sA=ms.map(m=>{const dd=DATA.filter(r=>r.date.slice(0,7)<=m&&r.type==='三麻');return dd.length?+(dd.reduce((s,r)=>s+r.rank_num,0)/dd.length).toFixed(2):null});
   trChart = mkChart('tr','line',{labels:ms.map(m=>parseInt(m.slice(5))+'月'),datasets:[
-    {label:'四麻',data:yA,borderColor:'#c9a227',backgroundColor:'#c9a22720',tension:0.3,pointRadius:4,spanGaps:true},
-    {label:'三麻',data:sA,borderColor:'#1ab5a0',backgroundColor:'#1ab5a020',tension:0.3,pointRadius:4,spanGaps:true,borderDash:[5,3]}
+    {label:'四麻',data:yA,borderColor:'#d4a843',backgroundColor:'#d4a84322',tension:0.3,pointRadius:4,spanGaps:true},
+    {label:'三麻',data:sA,borderColor:'#22c5b0',backgroundColor:'#22c5b022',tension:0.3,pointRadius:4,spanGaps:true,borderDash:[5,3]}
   ]},{animation:false,scales:{y:{reverse:true,min:1,max:4,ticks:{stepSize:0.5}}}});
 }
 function renderHist() {
@@ -545,8 +552,8 @@ async function init(){
   <div>
     <div class="sec-label">累積平均着順（その月までの全体平均）</div>
     <div style="display:flex;gap:12px;margin-bottom:4px;font-size:11px;color:#666">
-      <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:3px;background:#c9a227;display:inline-block;border-radius:2px"></span>四麻</span>
-      <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:3px;background:#1ab5a0;display:inline-block;border-radius:2px"></span>三麻</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:3px;background:#d4a843;display:inline-block;border-radius:2px"></span>四麻</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:3px;background:#22c5b0;display:inline-block;border-radius:2px"></span>三麻</span>
     </div>
     <div style="height:180px"><canvas id="c-tr"></canvas></div>
   </div>
