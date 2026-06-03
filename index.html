@@ -310,7 +310,7 @@ function renderDash() {
   trChart = mkChart('tr','line',{labels:ms.map(m=>parseInt(m.slice(5))+'月'),datasets:[
     {label:'四麻',data:yA,borderColor:'#3266ad',backgroundColor:'#3266ad18',tension:0.3,pointRadius:4,spanGaps:true},
     {label:'三麻',data:sA,borderColor:'#D85A30',backgroundColor:'#D85A3018',tension:0.3,pointRadius:4,spanGaps:true,borderDash:[5,3]}
-  ]},{scales:{y:{reverse:true,min:1,max:4,ticks:{stepSize:0.5}}}});
+  ]},{animation:false,scales:{y:{reverse:true,min:1,max:4,ticks:{stepSize:0.5}}}});
 }
 function renderHist() {
   const t=$('ht').value, p=$('hp').value, m=$('hm').value, r=$('hr').value;
