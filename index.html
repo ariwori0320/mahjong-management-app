@@ -10,20 +10,23 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
-  --bg: #ffffff; --bg2: #f5f5f7; --border: #e0e0e0;
-  --text: #111111; --text2: #666666; --text3: #aaaaaa;
-  --blue: #3266ad; --green: #1D9E75; --red: #D85A30;
+  --bg: #0d1b2e;
+  --bg2: #162338;
+  --border: #253a55;
+  --text: #e8eef5;
+  --text2: #7a9bbf;
+  --text3: #4a6080;
+  --blue: #c9a227;
+  --green: #1ab5a0;
+  --red: #e05c3a;
   --radius: 10px;
   --font: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
-}
-@media (prefers-color-scheme: dark) {
-  :root { --bg:#1c1c1e; --bg2:#2c2c2e; --border:#3a3a3c; --text:#f2f2f7; --text2:#aeaeb2; --text3:#636366; }
 }
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
 .app { max-width: 680px; margin: 0 auto; padding: 16px 14px 80px; }
-.hdr { display: flex; align-items: baseline; gap: 8px; margin-bottom: 16px; }
-.hdr h1 { font-size: 18px; font-weight: 600; }
+.hdr { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.hdr-logo { height: 38px; object-fit: contain; }
 .hdr small { font-size: 12px; color: var(--text2); }
 .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 16px; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
@@ -57,9 +60,9 @@ tr:last-child td { border-bottom: none; }
 .fg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
 .ff { display: flex; flex-direction: column; gap: 4px; }
 .ff label { font-size: 12px; color: var(--text2); font-weight: 600; }
-.sub { background: var(--blue); color: #fff; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; cursor: pointer; font-weight: 600; font-family: var(--font); width: 100%; margin-top: 4px; }
+.sub { background: var(--blue); color: #0d1b2e; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; cursor: pointer; font-weight: 700; font-family: var(--font); width: 100%; margin-top: 4px; }
 .sub:disabled { opacity: .5; cursor: default; }
-.sub:active:not(:disabled) { background: #1041b3; }
+.sub:active:not(:disabled) { filter: brightness(.88); }
 .ok { color: var(--green); font-size: 13px; margin-top: 8px; text-align: center; }
 .rd { display: flex; gap: 6px; align-items: flex-end; height: 80px; margin-bottom: 4px; }
 .rb { display: flex; flex-direction: column; align-items: center; flex: 1; gap: 2px; }
@@ -73,9 +76,9 @@ tr:last-child td { border-bottom: none; }
 .upload-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
 .upload-sub { font-size: 12px; color: var(--text2); }
 .ustatus { margin-top: 10px; padding: 10px 12px; border-radius: 8px; font-size: 13px; }
-.ustatus.loading { background: #eef3fc; color: var(--blue); border: 1px solid rgba(50,102,173,.3); }
-.ustatus.success { background: #edfaf4; color: #0a7c42; border: 1px solid rgba(10,124,66,.3); }
-.ustatus.error { background: #fff0ee; color: var(--red); border: 1px solid rgba(216,90,48,.3); }
+.ustatus.loading { background: rgba(201,162,39,.1); color: var(--blue); border: 1px solid rgba(201,162,39,.35); }
+.ustatus.success { background: rgba(26,181,160,.1); color: var(--green); border: 1px solid rgba(26,181,160,.35); }
+.ustatus.error { background: rgba(224,92,58,.1); color: var(--red); border: 1px solid rgba(224,92,58,.35); }
 .preview-wrap { margin-top: 10px; max-height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
 .confirm-row { display: flex; gap: 8px; margin-top: 10px; }
 .confirm-btn { background: var(--green); color: #fff; border: none; border-radius: 8px; padding: 10px 16px; font-size: 13px; cursor: pointer; font-weight: 600; font-family: var(--font); flex: 1; }
@@ -85,7 +88,7 @@ tr:last-child td { border-bottom: none; }
 .api-section label { font-size: 12px; color: var(--text2); font-weight: 600; display: block; margin-bottom: 6px; }
 .api-row { display: flex; gap: 8px; }
 .api-row input { flex: 1; font-size: 13px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-family: var(--font); }
-.api-save { padding: 7px 14px; font-size: 13px; background: var(--blue); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-family: var(--font); white-space: nowrap; }
+.api-save { padding: 7px 14px; font-size: 13px; background: var(--blue); color: #0d1b2e; font-weight: 700; border: none; border-radius: 8px; cursor: pointer; font-family: var(--font); white-space: nowrap; }
 .api-note { font-size: 11px; color: var(--text3); margin-top: 5px; }
 .sec-label { font-size: 11px; color: var(--text2); font-weight: 600; margin-bottom: 6px; }
 .act-btn { border: none; background: none; cursor: pointer; padding: 3px 4px; font-size: 13px; line-height: 1; opacity: .5; }
@@ -103,13 +106,9 @@ tr:last-child td { border-bottom: none; }
 #app-loading span { color: #fff; font-size: 14px; font-family: var(--font); }
 @keyframes spin { to { transform: rotate(360deg); } }
 /* Migration section */
-.migrate-section { background: #fff8e1; border: 1px solid #ffc107; border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; }
-.migrate-section label { font-size: 12px; color: #7a5800; font-weight: 600; display: block; margin-bottom: 6px; }
-.migrate-section p { font-size: 11px; color: #7a5800; margin-bottom: 8px; }
-@media (prefers-color-scheme: dark) {
-  .migrate-section { background: #2a2000; border-color: #7a5800; }
-  .migrate-section label, .migrate-section p { color: #ffc107; }
-}
+.migrate-section { background: rgba(201,162,39,.1); border: 1px solid rgba(201,162,39,.4); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; }
+.migrate-section label { font-size: 12px; color: var(--blue); font-weight: 600; display: block; margin-bottom: 6px; }
+.migrate-section p { font-size: 11px; color: var(--text2); margin-bottom: 8px; }
 </style>
 </head>
 <body>
@@ -310,8 +309,8 @@ function renderDash() {
   const yA=ms.map(m=>{const dd=DATA.filter(r=>r.date.slice(0,7)<=m&&r.type==='四麻');return dd.length?+(dd.reduce((s,r)=>s+r.rank_num,0)/dd.length).toFixed(2):null});
   const sA=ms.map(m=>{const dd=DATA.filter(r=>r.date.slice(0,7)<=m&&r.type==='三麻');return dd.length?+(dd.reduce((s,r)=>s+r.rank_num,0)/dd.length).toFixed(2):null});
   trChart = mkChart('tr','line',{labels:ms.map(m=>parseInt(m.slice(5))+'月'),datasets:[
-    {label:'四麻',data:yA,borderColor:'#3266ad',backgroundColor:'#3266ad18',tension:0.3,pointRadius:4,spanGaps:true},
-    {label:'三麻',data:sA,borderColor:'#D85A30',backgroundColor:'#D85A3018',tension:0.3,pointRadius:4,spanGaps:true,borderDash:[5,3]}
+    {label:'四麻',data:yA,borderColor:'#c9a227',backgroundColor:'#c9a22720',tension:0.3,pointRadius:4,spanGaps:true},
+    {label:'三麻',data:sA,borderColor:'#1ab5a0',backgroundColor:'#1ab5a020',tension:0.3,pointRadius:4,spanGaps:true,borderDash:[5,3]}
   ]},{animation:false,scales:{y:{reverse:true,min:1,max:4,ticks:{stepSize:0.5}}}});
 }
 function renderHist() {
@@ -519,7 +518,7 @@ async function init(){
 
   $('root').innerHTML=`
 <div class="hdr">
-  <h1>🀄 麻雀成績管理</h1>
+  <img src="logo.png" alt="麻雀成績管理" class="hdr-logo">
   <small id="hdr-cnt">四麻${yn}件・三麻${sn}件・計${DATA.length}件</small>
 </div>
 <div class="tabs">
@@ -546,8 +545,8 @@ async function init(){
   <div>
     <div class="sec-label">累積平均着順（その月までの全体平均）</div>
     <div style="display:flex;gap:12px;margin-bottom:4px;font-size:11px;color:#666">
-      <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:3px;background:#3266ad;display:inline-block;border-radius:2px"></span>四麻</span>
-      <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:3px;background:#D85A30;display:inline-block;border-radius:2px"></span>三麻</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:3px;background:#c9a227;display:inline-block;border-radius:2px"></span>四麻</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:3px;background:#1ab5a0;display:inline-block;border-radius:2px"></span>三麻</span>
     </div>
     <div style="height:180px"><canvas id="c-tr"></canvas></div>
   </div>
