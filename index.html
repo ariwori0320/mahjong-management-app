@@ -259,9 +259,19 @@ function stats(d) {
 function rdist(id, s) {
   const counts=[s.r1,s.r2,s.r3,s.r4], n=s.total, max=Math.max(...counts,1);
   const colors=['#EF9F27','#888780','#F0997B','#7aadff'], labs=['1位','2位','3位','4位'];
-  $(id).innerHTML = '<div class="rd">' + counts.map((c,i)=>
-    `<div class="rb"><div class="rb-v" style="color:${colors[i]}">${n?Math.round(c/n*100):0}%</div><div class="rb-b" style="height:${Math.round(c/max*56)+4}px;background:${colors[i]}"></div><div class="rb-l">${labs[i]}</div><div class="rb-l" style="font-weight:600">${c}</div></div>`
-  ).join('') + '</div>';
+  const BAR_MAX = 72;
+  $(id).innerHTML =
+    `<div style="display:flex;gap:8px;align-items:flex-end;padding-top:24px;margin-bottom:4px">` +
+    counts.map((c,i) => {
+      const pct = n ? Math.round(c/n*100) : 0;
+      const bh = Math.round(c/max*BAR_MAX) + 4;
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+        <div style="font-size:12px;font-weight:700;color:${colors[i]}">${pct}%</div>
+        <div style="width:100%;height:${bh}px;background:${colors[i]};border-radius:4px 4px 0 0"></div>
+        <div style="font-size:10px;color:var(--text2)">${labs[i]}</div>
+        <div style="font-size:11px;font-weight:600">${c}回</div>
+      </div>`;
+    }).join('') + `</div>`;
 }
 function mkChart(id, type, data, opts) {
   const c = $('c-'+id); if (!c || !window.Chart) return null;
@@ -271,9 +281,7 @@ function metHTML(s) {
   return `
     <div class="mt"><div class="mt-l">総対局数</div><div class="mt-v">${s.total}</div></div>
     <div class="mt"><div class="mt-l">平均着順</div><div class="mt-v ${s.avg<=2.34?'g':s.avg>=2.7?'r':''}">${s.avg.toFixed(2)}</div></div>
-    <div class="mt"><div class="mt-l">持ち点平均</div><div class="mt-v">${fmt(Math.round(s.savg))}</div></div>
-    <div class="mt"><div class="mt-l">1位率</div><div class="mt-v g">${s.total?Math.round(s.r1/s.total*100):0}%</div></div>
-    <div class="mt"><div class="mt-l">4位率</div><div class="mt-v r">${s.total?Math.round(s.r4/s.total*100):0}%</div></div>`;
+    <div class="mt"><div class="mt-l">持ち点平均</div><div class="mt-v">${fmt(Math.round(s.savg))}</div></div>`;
 }
 function scoreCell(score) { return `<td class="${score>=25000?'g':'r'}">${fmt(score)}</td>`; }
 function rowHTML(r, editable=false) {
@@ -297,8 +305,8 @@ function renderDash() {
   rdist('dr', s);
   if (trChart) trChart.destroy();
   const ms=months();
-  const yA=ms.map(m=>{const dd=DATA.filter(r=>r.date.startsWith(m)&&r.type==='四麻');return dd.length?+(dd.reduce((s,r)=>s+r.rank_num,0)/dd.length).toFixed(2):null});
-  const sA=ms.map(m=>{const dd=DATA.filter(r=>r.date.startsWith(m)&&r.type==='三麻');return dd.length?+(dd.reduce((s,r)=>s+r.rank_num,0)/dd.length).toFixed(2):null});
+  const yA=ms.map(m=>{const dd=DATA.filter(r=>r.date.slice(0,7)<=m&&r.type==='四麻');return dd.length?+(dd.reduce((s,r)=>s+r.rank_num,0)/dd.length).toFixed(2):null});
+  const sA=ms.map(m=>{const dd=DATA.filter(r=>r.date.slice(0,7)<=m&&r.type==='三麻');return dd.length?+(dd.reduce((s,r)=>s+r.rank_num,0)/dd.length).toFixed(2):null});
   trChart = mkChart('tr','line',{labels:ms.map(m=>parseInt(m.slice(5))+'月'),datasets:[
     {label:'四麻',data:yA,borderColor:'#3266ad',backgroundColor:'#3266ad18',tension:0.3,pointRadius:4,spanGaps:true},
     {label:'三麻',data:sA,borderColor:'#D85A30',backgroundColor:'#D85A3018',tension:0.3,pointRadius:4,spanGaps:true,borderDash:[5,3]}
@@ -534,7 +542,7 @@ async function init(){
     <div id="dr"></div>
   </div>
   <div>
-    <div class="sec-label">月別平均着順</div>
+    <div class="sec-label">累積平均着順（その月までの全体平均）</div>
     <div style="display:flex;gap:12px;margin-bottom:4px;font-size:11px;color:#666">
       <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:3px;background:#3266ad;display:inline-block;border-radius:2px"></span>四麻</span>
       <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:3px;background:#D85A30;display:inline-block;border-radius:2px"></span>三麻</span>
