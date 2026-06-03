@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>データ移行</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif; background: #f5f5f7; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.card { background: #fff; border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 400px; box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+h1 { font-size: 20px; margin-bottom: 6px; }
+.sub { font-size: 13px; color: #666; margin-bottom: 20px; line-height: 1.5; }
+.count { font-size: 15px; font-weight: 600; margin-bottom: 18px; padding: 12px 14px; background: #f5f5f7; border-radius: 10px; }
+.count.ok { color: #1D9E75; background: #edfaf4; }
+.count.ng { color: #D85A30; background: #fff0ee; }
+button { background: #3266ad; color: #fff; border: none; border-radius: 10px; padding: 14px; font-size: 15px; font-weight: 600; width: 100%; cursor: pointer; font-family: inherit; }
+button:disabled { opacity: .5; cursor: default; }
+#status { margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: 13px; display: none; line-height: 1.5; }
+.info { background: #eef3fc; color: #3266ad; }
+.success { background: #edfaf4; color: #0a7c42; }
+.error { background: #fff0ee; color: #D85A30; }
+.link { display: block; margin-top: 16px; text-align: center; font-size: 13px; color: #3266ad; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>📲 データ移行</h1>
+  <p class="sub">iPhoneのSafariでこのページを開き、ボタンを押すとローカルに保存されたデータをクラウドに移行できます。</p>
+  <div class="count" id="count">確認中...</div>
+  <button id="btn" onclick="migrate()" disabled>クラウドに移行する</button>
+  <div id="status"></div>
+  <a class="link" href="https://mahjong-mngmnt-result.vercel.app" id="app-link" style="display:none">→ アプリを開く</a>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://giormjyjrdyzcbsrmoeb.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdpb3JtanlqcmR5emNic3Jtb2ViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDcxMDQsImV4cCI6MjA5NjAyMzEwNH0.9JiOW2eIsT7KyezWkhN3JGk_nkpKfS3TpTFcqBfUIKY';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let records = [];
+try {
+  const saved = localStorage.getItem('mahjong_data_v1');
+  if (saved) records = JSON.parse(saved);
+} catch(e) {}
+
+const countEl = document.getElementById('count');
+const btn = document.getElementById('btn');
+
+if (records.length > 0) {
+  countEl.textContent = `✅ ローカルデータ ${records.length}件 が見つかりました`;
+  countEl.className = 'count ok';
+  btn.disabled = false;
+} else {
+  countEl.textContent = '⚠ ローカルデータが見つかりません\n（このブラウザには保存されていません）';
+  countEl.className = 'count ng';
+}
+
+function setStatus(cls, msg) {
+  const el = document.getElementById('status');
+  el.style.display = 'block';
+  el.className = cls;
+  el.textContent = msg;
+}
+
+async function migrate() {
+  if (!records.length) return;
+  btn.disabled = true;
+  btn.textContent = '移行中...';
+  setStatus('info', `${records.length}件をアップロード中...`);
+  try {
+    const rows = records.map(r => ({
+      date: r.date, place: r.place, type: r.type,
+      rank_num: r.rank_num, score: r.score
+    }));
+    for (let i = 0; i < rows.length; i += 500) {
+      const { error } = await sb.from('games').insert(rows.slice(i, i + 500));
+      if (error) throw error;
+    }
+    localStorage.removeItem('mahjong_data_v1');
+    setStatus('success', `✅ ${records.length}件の移行が完了しました！\n下のリンクからアプリを開いてください。`);
+    btn.textContent = '移行完了！';
+    document.getElementById('app-link').style.display = 'block';
+  } catch(e) {
+    setStatus('error', '移行失敗: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = 'クラウドに移行する';
+  }
+}
+</script>
+</body>
+</html>
