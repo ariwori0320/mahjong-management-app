@@ -382,6 +382,82 @@ async function deleteRecord(id) {
 }
 function deleteFromEdit() { if(editingId!==null) deleteRecord(editingId); }
 
+// ===== CSV テキストインポート =====
+let csvRows = [];
+
+function parseCSV() {
+  const text = $('csv-input').value.trim();
+  const statusEl = $('csv-status');
+  statusEl.style.display = 'block';
+  $('csv-preview').style.display = 'none';
+  $('csv-confirm').style.display = 'none';
+  csvRows = [];
+  if (!text) { statusEl.className='ustatus error'; statusEl.textContent='⚠ データを入力してください'; return; }
+
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+  const errors = [];
+  const curYear = new Date().getFullYear();
+
+  for (const line of lines) {
+    if (/^(日付|date)/i.test(line)) continue; // ヘッダー行スキップ
+    const parts = line.split(/[,，\t]/);
+    if (parts.length < 5) { errors.push(line); continue; }
+    let [date, place, type, rank, score] = parts.map(p => p.trim());
+    // 日付: MM-DD → YYYY-MM-DD に補完
+    if (/^\d{2}-\d{2}$/.test(date)) date = `${curYear}-${date}`;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { errors.push(line); continue; }
+    // 種別の表記ゆれを吸収
+    if (/^(4|四|yon)/i.test(type)) type = '四麻';
+    else if (/^(3|三|san)/i.test(type)) type = '三麻';
+    if (type !== '四麻' && type !== '三麻') { errors.push(line); continue; }
+    const rank_num = parseInt(rank);
+    const scoreNum = parseInt(score);
+    if (!place || rank_num < 1 || rank_num > 4 || isNaN(scoreNum)) { errors.push(line); continue; }
+    csvRows.push({ date, place, type, rank_num, score: scoreNum });
+  }
+
+  if (csvRows.length === 0) {
+    statusEl.className='ustatus error';
+    statusEl.textContent=`⚠ 有効なデータが見つかりませんでした${errors.length?'\nエラー行: '+errors.slice(0,3).join(' / '):''}`;
+    return;
+  }
+  statusEl.className='ustatus success';
+  statusEl.textContent=`✅ ${csvRows.length}件を検出${errors.length?' （'+errors.length+'行はスキップ）':''}`;
+  const tbody = csvRows.map(r=>rowHTML(r,false)).join('');
+  $('csv-preview').style.display='block';
+  $('csv-preview').innerHTML=`<div class="preview-wrap"><table><thead><tr><th>日付</th><th>場所</th><th>種別</th><th>順位</th><th>持ち点</th></tr></thead><tbody>${tbody}</tbody></table></div>`;
+  $('csv-confirm').style.display='flex';
+}
+
+async function importCSV() {
+  if (!csvRows.length) return;
+  const added = csvRows.length;
+  const btn = $('csv-import-btn');
+  btn.disabled=true; btn.textContent='追加中...';
+  try {
+    await insertBatch(csvRows);
+    DATA = await fetchAll();
+    csvRows=[];
+    $('csv-input').value='';
+    $('csv-preview').style.display='none';
+    $('csv-confirm').style.display='none';
+    $('csv-status').className='ustatus success';
+    $('csv-status').textContent=`✅ ${added}件を追加しました（合計${DATA.length}件）`;
+    renderAdd(); refreshFilters(); updateHeaderCount();
+  } catch(e) {
+    $('csv-status').className='ustatus error';
+    $('csv-status').textContent='追加失敗: '+e.message;
+  }
+  finally { btn.disabled=false; btn.textContent='✓ このデータを追加する'; }
+}
+function cancelCSV() {
+  csvRows=[];
+  $('csv-input').value='';
+  $('csv-preview').style.display='none';
+  $('csv-confirm').style.display='none';
+  $('csv-status').style.display='none';
+}
+
 // ===== Upload / AI =====
 function setStatus(type,msg){ const el=$('upload-status'); el.style.display='block'; el.className='ustatus '+type; el.innerHTML=msg; }
 function clearStatus(){ const el=$('upload-status'); if(el) el.style.display='none'; }
@@ -539,6 +615,24 @@ async function init(){
       <span id="api-saved-msg" style="display:none;color:#1D9E75;font-size:12px;align-self:center">✓保存</span>
     </div>
     <div class="api-note">※ キーはこのブラウザにのみ保存されます。<a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#3266ad">APIキーの取得はこちら</a></div>
+  </div>
+
+  <div class="af">
+    <div class="af-title">📝 テキストから一括追加</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:8px">以下の形式でデータを入力・貼り付けてください（カンマ区切り）：</p>
+    <pre style="font-size:11px;background:var(--bg2);padding:8px 10px;border-radius:8px;margin-bottom:10px;color:var(--text2);overflow-x:auto;white-space:pre-wrap">日付,場所,種別,順位,持ち点
+2026-05-18,セット,四麻,1,45000
+05-19,フリー,三麻,2,32000
+05-20,雀魂,4,1,48000</pre>
+    <p style="font-size:11px;color:var(--text3);margin-bottom:8px">※ 日付はMM-DDでも可（年は自動補完）。種別は「四」「4」「三」「3」でもOK。</p>
+    <textarea id="csv-input" placeholder="ここにデータを貼り付け..." style="width:100%;height:140px;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:monospace;resize:vertical"></textarea>
+    <button class="sub" style="margin-top:8px" onclick="parseCSV()">📋 プレビュー確認</button>
+    <div id="csv-status" class="ustatus" style="display:none"></div>
+    <div id="csv-preview" style="display:none;margin-top:8px"></div>
+    <div id="csv-confirm" class="confirm-row" style="display:none">
+      <button class="confirm-btn" id="csv-import-btn" onclick="importCSV()">✓ このデータを追加する</button>
+      <button class="cancel-btn" onclick="cancelCSV()">キャンセル</button>
+    </div>
   </div>
 
   <div class="af">
