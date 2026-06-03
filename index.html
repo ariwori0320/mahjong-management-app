@@ -532,7 +532,7 @@ async function init(){
     <span>月</span>
     <select id="d-month" onchange="renderDash()"><option value="all">全て</option>${ms.map(m=>`<option value="${m}">${parseInt(m.slice(5))}月</option>`).join('')}</select>
     <span>種別</span>
-    <select id="dt" onchange="renderDash()"><option value="all">全て</option><option value="四麻">四麻</option><option value="三麻">三麻</option></select>
+    <select id="dt" onchange="renderDash()"><option value="all">全て</option><option value="四麻" selected>四麻</option><option value="三麻">三麻</option></select>
     <span>場所</span>
     <select id="dp" onchange="renderDash()"><option value="all">全て</option>${ps.map(p=>`<option>${p}</option>`).join('')}</select>
   </div>
