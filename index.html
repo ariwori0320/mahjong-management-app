@@ -158,7 +158,7 @@ const PAGE = 15;
 // ===== 状態 =====
 let DATA = [];
 let tab = 'dashboard', histPage = 1, editingId = null;
-let plChart = null, trChart = null;
+let trChart = null;
 
 const fmt = n => Number(n).toLocaleString('ja-JP');
 const $ = id => document.getElementById(id);
@@ -275,10 +275,6 @@ function renderDash() {
   const s=stats(d);
   $('dm').innerHTML = metHTML(s);
   rdist('dr', s);
-  if (plChart) plChart.destroy();
-  const pc={}; d.forEach(r=>{pc[r.place]=(pc[r.place]||0)+1});
-  const pl=Object.keys(pc).sort((a,b)=>pc[b]-pc[a]);
-  plChart = mkChart('pl','bar',{labels:pl,datasets:[{data:pl.map(x=>pc[x]),backgroundColor:'#3266ad66',borderColor:'#3266ad',borderWidth:1}]},{scales:{y:{beginAtZero:true},x:{ticks:{font:{size:10}}}}});
   if (trChart) trChart.destroy();
   const ms=months();
   const yA=ms.map(m=>{const dd=DATA.filter(r=>r.date.startsWith(m)&&r.type==='四麻');return dd.length?+(dd.reduce((s,r)=>s+r.rank_num,0)/dd.length).toFixed(2):null});
@@ -503,9 +499,9 @@ async function init(){
     <select id="dp" onchange="renderDash()"><option value="all">全て</option>${ps.map(p=>`<option>${p}</option>`).join('')}</select>
   </div>
   <div class="mts" id="dm"></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
-    <div><div class="sec-label">順位分布</div><div id="dr"></div></div>
-    <div><div class="sec-label">場所別対局数</div><div style="height:150px"><canvas id="c-pl"></canvas></div></div>
+  <div style="margin-bottom:16px">
+    <div class="sec-label">順位分布</div>
+    <div id="dr"></div>
   </div>
   <div>
     <div class="sec-label">月別平均着順</div>
