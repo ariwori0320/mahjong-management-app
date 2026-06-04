@@ -135,7 +135,7 @@ tr:last-child td { border-bottom: none; }
       <div class="ff" id="e-custom-wrap" style="display:none"><label>場所名</label><input type="text" id="e-custom" placeholder="場所名を入力"></div>
       <div class="ff"><label>種別</label><select id="e-type"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
       <div class="ff"><label>順位</label><select id="e-rank"><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select></div>
-      <div class="ff"><label>持ち点</label><input type="number" id="e-score" placeholder="例: 35000"></div>
+      <div class="ff"><label>持ち点（百点単位）</label><input type="number" id="e-score" placeholder="例: 350"></div>
     </div>
     <div class="modal-footer">
       <button class="sub" style="flex:1" id="save-edit-btn" onclick="saveEdit()">保存</button>
@@ -346,7 +346,7 @@ function renderAdd() {
 async function doAdd() {
   const date=$('a-date').value, plEl=$('a-place');
   const place=plEl.value==='__custom__'?$('a-custom').value.trim():plEl.value;
-  const type=$('a-type').value, rn=parseInt($('a-rank').value), score=parseInt($('a-score').value)||0;
+  const type=$('a-type').value, rn=parseInt($('a-rank').value), score=(parseInt($('a-score').value)||0)*100;
   if (!date||!place) { alert('日付と場所を入力してください'); return; }
   const btn=$('add-submit-btn');
   btn.disabled=true; btn.textContent='保存中...';
@@ -382,7 +382,7 @@ function openEdit(id) {
   $('e-place').value=isPreset?r.place:'__custom__';
   $('e-custom').value=isPreset?'':r.place;
   $('e-custom-wrap').style.display=isPreset?'none':'flex';
-  $('e-type').value=r.type; $('e-rank').value=r.rank_num; $('e-score').value=r.score;
+  $('e-type').value=r.type; $('e-rank').value=r.rank_num; $('e-score').value=Math.round(r.score/100);
   $('edit-modal').classList.add('on');
 }
 function closeEditModal() { editingId=null; $('edit-modal').classList.remove('on'); }
@@ -392,7 +392,7 @@ async function saveEdit() {
   const idx=DATA.findIndex(x=>x.id===editingId); if(idx===-1) return;
   const date=$('e-date').value;
   const place=$('e-place').value==='__custom__'?$('e-custom').value.trim():$('e-place').value;
-  const type=$('e-type').value, rank_num=parseInt($('e-rank').value), score=parseInt($('e-score').value)||0;
+  const type=$('e-type').value, rank_num=parseInt($('e-rank').value), score=(parseInt($('e-score').value)||0)*100;
   if (!date||!place) { alert('日付と場所を入力してください'); return; }
   const btn=$('save-edit-btn');
   btn.disabled=true; btn.textContent='保存中...';
@@ -611,7 +611,7 @@ async function init(){
       <div class="ff" id="a-custom-wrap" style="display:none"><label>場所名</label><input type="text" id="a-custom" placeholder="場所名を入力"></div>
       <div class="ff"><label>種別</label><select id="a-type"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
       <div class="ff"><label>順位</label><select id="a-rank"><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select></div>
-      <div class="ff"><label>持ち点</label><input type="number" id="a-score" placeholder="例: 35000"></div>
+      <div class="ff"><label>持ち点（百点単位）</label><input type="number" id="a-score" placeholder="例: 350"></div>
     </div>
     <button class="sub" id="add-submit-btn" onclick="doAdd()">+ 追加する</button>
     <div id="add-ok" class="ok" style="display:none">✓ 追加しました！</div>
