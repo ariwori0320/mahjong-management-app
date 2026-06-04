@@ -345,10 +345,13 @@ function updateHeaderCount() {
 
 // ===== 描画 =====
 function renderDash() {
-  const t=$('dt').value, mo=$('d-month')?$('d-month').value:'all';
+  const t=$('dt').value;
+  const yr=$('d-year')?$('d-year').value:'all';
+  const mo=$('d-month-only')?$('d-month-only').value:'all';
   let d = DATA.filter(r =>
     (t==='all'||r.type===t) &&
-    (mo==='all'||r.date.startsWith(mo)) &&
+    (yr==='all'||r.date.startsWith(yr)) &&
+    (mo==='all'||r.date.slice(5,7)===mo) &&
     (selectedPlaces.size===0||selectedPlaces.has(r.place))
   );
   const s=stats(d);
@@ -414,7 +417,7 @@ function refreshFilters() {
   ['hp'].forEach(id=>{ const el=$(id); if(!el) return; const v=el.value; el.innerHTML='<option value="all">全て</option>'+ps.map(p=>`<option>${p}</option>`).join(''); el.value=v; });
   buildPlaceChips();
   const hm=$('hm'); if(hm){ const v=hm.value; hm.innerHTML='<option value="all">全て</option>'+ms.map(m=>`<option value="${m}">${m.slice(0,4)}年${parseInt(m.slice(5))}月</option>`).join(''); hm.value=v; }
-  const dm=$('d-month'); if(dm){ const v=dm.value; dm.innerHTML='<option value="all">全て</option>'+ms.map(m=>`<option value="${m}">${m.slice(0,4)}年${parseInt(m.slice(5))}月</option>`).join(''); dm.value=v; }
+  const dy=$('d-year'); if(dy){ const v=dy.value; dy.innerHTML='<option value="all">全て</option>'+[...new Set(DATA.map(r=>r.date.slice(0,4)))].sort().map(y=>`<option value="${y}">${y}年</option>`).join(''); dy.value=v; }
 }
 
 function openEdit(id) {
@@ -583,8 +586,12 @@ async function init(){
   <div class="filter-panel">
     <div class="filter-row">
       <div class="filter-group">
+        <label>年</label>
+        <select id="d-year" onchange="renderDash()"><option value="all">全て</option>${[...new Set(DATA.map(r=>r.date.slice(0,4)))].sort().map(y=>`<option value="${y}">${y}年</option>`).join('')}</select>
+      </div>
+      <div class="filter-group">
         <label>月</label>
-        <select id="d-month" onchange="renderDash()"><option value="all">全て</option>${ms.map(m=>`<option value="${m}">${m.slice(0,4)}年${parseInt(m.slice(5))}月</option>`).join('')}</select>
+        <select id="d-month-only" onchange="renderDash()"><option value="all">全て</option>${['01','02','03','04','05','06','07','08','09','10','11','12'].map(m=>`<option value="${m}">${parseInt(m)}月</option>`).join('')}</select>
       </div>
       <div class="filter-group">
         <label>種別</label>
