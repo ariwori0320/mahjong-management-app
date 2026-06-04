@@ -358,7 +358,7 @@ function renderDash() {
   const ms=months();
   const yA=ms.map(m=>{const dd=DATA.filter(r=>r.date.slice(0,7)<=m&&r.type==='四麻');return dd.length?+(dd.reduce((s,r)=>s+r.rank_num,0)/dd.length).toFixed(2):null});
   const sA=ms.map(m=>{const dd=DATA.filter(r=>r.date.slice(0,7)<=m&&r.type==='三麻');return dd.length?+(dd.reduce((s,r)=>s+r.rank_num,0)/dd.length).toFixed(2):null});
-  trChart = mkChart('tr','line',{labels:ms.map(m=>parseInt(m.slice(5))+'月'),datasets:[
+  trChart = mkChart('tr','line',{labels:ms.map(m=>m.slice(2,4)+'/'+parseInt(m.slice(5))),datasets:[
     {label:'四麻',data:yA,borderColor:'#d4a843',backgroundColor:'#d4a84322',tension:0.3,pointRadius:4,spanGaps:true},
     {label:'三麻',data:sA,borderColor:'#22c5b0',backgroundColor:'#22c5b022',tension:0.3,pointRadius:4,spanGaps:true,borderDash:[5,3]}
   ]},{animation:false,scales:{y:{reverse:true,min:1,max:4,ticks:{stepSize:0.5}}}});
@@ -413,8 +413,8 @@ function refreshFilters() {
   const ps=places(), ms=months();
   ['hp'].forEach(id=>{ const el=$(id); if(!el) return; const v=el.value; el.innerHTML='<option value="all">全て</option>'+ps.map(p=>`<option>${p}</option>`).join(''); el.value=v; });
   buildPlaceChips();
-  const hm=$('hm'); if(hm){ const v=hm.value; hm.innerHTML='<option value="all">全て</option>'+ms.map(m=>`<option value="${m}">${parseInt(m.slice(5))}月</option>`).join(''); hm.value=v; }
-  const dm=$('d-month'); if(dm){ const v=dm.value; dm.innerHTML='<option value="all">全て</option>'+ms.map(m=>`<option value="${m}">${parseInt(m.slice(5))}月</option>`).join(''); dm.value=v; }
+  const hm=$('hm'); if(hm){ const v=hm.value; hm.innerHTML='<option value="all">全て</option>'+ms.map(m=>`<option value="${m}">${m.slice(0,4)}年${parseInt(m.slice(5))}月</option>`).join(''); hm.value=v; }
+  const dm=$('d-month'); if(dm){ const v=dm.value; dm.innerHTML='<option value="all">全て</option>'+ms.map(m=>`<option value="${m}">${m.slice(0,4)}年${parseInt(m.slice(5))}月</option>`).join(''); dm.value=v; }
 }
 
 function openEdit(id) {
@@ -584,7 +584,7 @@ async function init(){
     <div class="filter-row">
       <div class="filter-group">
         <label>月</label>
-        <select id="d-month" onchange="renderDash()"><option value="all">全て</option>${ms.map(m=>`<option value="${m}">${parseInt(m.slice(5))}月</option>`).join('')}</select>
+        <select id="d-month" onchange="renderDash()"><option value="all">全て</option>${ms.map(m=>`<option value="${m}">${m.slice(0,4)}年${parseInt(m.slice(5))}月</option>`).join('')}</select>
       </div>
       <div class="filter-group">
         <label>種別</label>
@@ -622,7 +622,7 @@ async function init(){
       </div>
       <div class="filter-group">
         <label>月</label>
-        <select id="hm" onchange="histPage=1;renderHist()"><option value="all">全て</option>${ms.map(m=>`<option value="${m}">${parseInt(m.slice(5))}月</option>`).join('')}</select>
+        <select id="hm" onchange="histPage=1;renderHist()"><option value="all">全て</option>${ms.map(m=>`<option value="${m}">${m.slice(0,4)}年${parseInt(m.slice(5))}月</option>`).join('')}</select>
       </div>
       <div class="filter-group">
         <label>順位</label>
