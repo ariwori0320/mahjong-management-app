@@ -93,6 +93,11 @@ tr:last-child td { border-bottom: none; }
 .sec-label { font-size: 11px; color: var(--text2); font-weight: 600; margin-bottom: 6px; }
 .act-btn { border: none; background: none; cursor: pointer; padding: 3px 4px; font-size: 13px; line-height: 1; opacity: .5; }
 .act-btn:hover { opacity: 1; }
+/* 場所チップ */
+.place-chip { padding: 4px 10px; font-size: 12px; border: 1px solid var(--border); border-radius: 20px; cursor: pointer; background: var(--bg2); color: var(--text2); font-family: var(--font); white-space: nowrap; }
+.place-chip.on { background: var(--blue); color: #141d2b; border-color: var(--blue); font-weight: 700; }
+/* スコアプレビュー */
+.score-preview { font-size: 12px; margin-top: 3px; min-height: 16px; font-weight: 600; }
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 200; align-items: center; justify-content: center; padding: 16px; }
 .modal-overlay.on { display: flex; }
 .modal { background: var(--bg); border-radius: 14px; padding: 20px; width: 100%; max-width: 400px; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 40px rgba(0,0,0,.25); }
@@ -135,7 +140,7 @@ tr:last-child td { border-bottom: none; }
       <div class="ff" id="e-custom-wrap" style="display:none"><label>場所名</label><input type="text" id="e-custom" placeholder="場所名を入力"></div>
       <div class="ff"><label>種別</label><select id="e-type"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
       <div class="ff"><label>順位</label><select id="e-rank"><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select></div>
-      <div class="ff"><label>持ち点（百点単位）</label><input type="number" id="e-score" placeholder="例: 350"></div>
+      <div class="ff"><label>持ち点（百点単位）</label><input type="number" id="e-score" placeholder="例: 350" min="-999" max="999" oninput="updateScorePreview('e-score','e-score-preview')"><span id="e-score-preview" class="score-preview"></span></div>
     </div>
     <div class="modal-footer">
       <button class="sub" style="flex:1" id="save-edit-btn" onclick="saveEdit()">保存</button>
@@ -179,6 +184,7 @@ const PAGE = 15;
 // ===== 状態 =====
 let DATA = [];
 let tab = 'dashboard', histPage = 1, editingId = null;
+let selectedPlaces = new Set();
 let trChart = null;
 
 const fmt = n => Number(n).toLocaleString('ja-JP');
@@ -249,6 +255,34 @@ async function runMigration() {
 }
 
 // ===== 統計 =====
+// ===== 場所チップ複数選択 =====
+function togglePlace(place) {
+  if (selectedPlaces.has(place)) selectedPlaces.delete(place);
+  else selectedPlaces.add(place);
+  document.querySelectorAll('.place-chip').forEach(c => {
+    c.classList.toggle('on', selectedPlaces.has(c.dataset.place));
+  });
+  renderDash();
+}
+function buildPlaceChips() {
+  const el = $('dp-chips'); if (!el) return;
+  el.innerHTML = places().map(p =>
+    `<button class="place-chip${selectedPlaces.has(p)?' on':''}" data-place="${p}" onclick="togglePlace('${p}')">${p}</button>`
+  ).join('');
+}
+
+// ===== スコアプレビュー =====
+function updateScorePreview(inputId, previewId) {
+  const input = $(inputId), el = $(previewId);
+  if (!el) return;
+  let val = parseInt(input.value);
+  if (isNaN(val)) { el.textContent = ''; return; }
+  if (val > 999) { val = 999; input.value = 999; }
+  if (val < -999) { val = -999; input.value = -999; }
+  el.textContent = '→ ' + Number(val * 100).toLocaleString('ja-JP') + ' 点';
+  el.style.color = val >= 0 ? 'var(--green)' : 'var(--red)';
+}
+
 function months() { return [...new Set(DATA.map(r => r.date.slice(0,7)))].sort(); }
 function places() { return [...new Set(DATA.map(r => r.place))].sort(); }
 function filt(d,t,p) { return d.filter(r => (t==='all'||r.type===t) && (p==='all'||r.place===p)); }
@@ -305,9 +339,12 @@ function updateHeaderCount() {
 
 // ===== 描画 =====
 function renderDash() {
-  const t=$('dt').value, p=$('dp').value, mo=$('d-month')?$('d-month').value:'all';
-  let d = filt(DATA,t,p);
-  if (mo !== 'all') d = d.filter(r => r.date.startsWith(mo));
+  const t=$('dt').value, mo=$('d-month')?$('d-month').value:'all';
+  let d = DATA.filter(r =>
+    (t==='all'||r.type===t) &&
+    (mo==='all'||r.date.startsWith(mo)) &&
+    (selectedPlaces.size===0||selectedPlaces.has(r.place))
+  );
   const s=stats(d);
   $('dm').innerHTML = metHTML(s);
   rdist('dr', s);
@@ -368,7 +405,8 @@ function toggleEditCustom() { $('e-custom-wrap').style.display=$('e-place').valu
 
 function refreshFilters() {
   const ps=places(), ms=months();
-  ['dp','hp'].forEach(id=>{ const el=$(id); if(!el) return; const v=el.value; el.innerHTML='<option value="all">全て</option>'+ps.map(p=>`<option>${p}</option>`).join(''); el.value=v; });
+  ['hp'].forEach(id=>{ const el=$(id); if(!el) return; const v=el.value; el.innerHTML='<option value="all">全て</option>'+ps.map(p=>`<option>${p}</option>`).join(''); el.value=v; });
+  buildPlaceChips();
   const hm=$('hm'); if(hm){ const v=hm.value; hm.innerHTML='<option value="all">全て</option>'+ms.map(m=>`<option value="${m}">${parseInt(m.slice(5))}月</option>`).join(''); hm.value=v; }
   const dm=$('d-month'); if(dm){ const v=dm.value; dm.innerHTML='<option value="all">全て</option>'+ms.map(m=>`<option value="${m}">${parseInt(m.slice(5))}月</option>`).join(''); dm.value=v; }
 }
@@ -383,6 +421,7 @@ function openEdit(id) {
   $('e-custom').value=isPreset?'':r.place;
   $('e-custom-wrap').style.display=isPreset?'none':'flex';
   $('e-type').value=r.type; $('e-rank').value=r.rank_num; $('e-score').value=Math.round(r.score/100);
+  updateScorePreview('e-score','e-score-preview');
   $('edit-modal').classList.add('on');
 }
 function closeEditModal() { editingId=null; $('edit-modal').classList.remove('on'); }
@@ -542,7 +581,7 @@ async function init(){
     <span>種別</span>
     <select id="dt" onchange="renderDash()"><option value="all">全て</option><option value="四麻" selected>四麻</option><option value="三麻">三麻</option></select>
     <span>場所</span>
-    <select id="dp" onchange="renderDash()"><option value="all">全て</option>${ps.map(p=>`<option>${p}</option>`).join('')}</select>
+    <div id="dp-chips" style="display:flex;flex-wrap:wrap;gap:4px">${ps.map(p=>`<button class="place-chip" data-place="${p}" onclick="togglePlace('${p}')">${p}</button>`).join('')}</div>
   </div>
   <div class="mts" id="dm"></div>
   <div style="margin-bottom:16px">
@@ -611,7 +650,7 @@ async function init(){
       <div class="ff" id="a-custom-wrap" style="display:none"><label>場所名</label><input type="text" id="a-custom" placeholder="場所名を入力"></div>
       <div class="ff"><label>種別</label><select id="a-type"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
       <div class="ff"><label>順位</label><select id="a-rank"><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select></div>
-      <div class="ff"><label>持ち点（百点単位）</label><input type="number" id="a-score" placeholder="例: 350"></div>
+      <div class="ff"><label>持ち点（百点単位）</label><input type="number" id="a-score" placeholder="例: 350" min="-999" max="999" oninput="updateScorePreview('a-score','a-score-preview')"><span id="a-score-preview" class="score-preview"></span></div>
     </div>
     <button class="sub" id="add-submit-btn" onclick="doAdd()">+ 追加する</button>
     <div id="add-ok" class="ok" style="display:none">✓ 追加しました！</div>
