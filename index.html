@@ -104,9 +104,7 @@ tr:last-child td { border-bottom: none; }
 .place-chip { padding: 4px 10px; font-size: 12px; border: 1px solid var(--border); border-radius: 20px; cursor: pointer; background: var(--bg2); color: var(--text2); font-family: var(--font); white-space: nowrap; }
 .place-chip.on { background: var(--blue); color: #141d2b; border-color: var(--blue); font-weight: 700; }
 /* スコア入力 */
-.score-wrap { display: flex; align-items: center; gap: 4px; }
-.score-wrap input { width: 76px; text-align: right; }
-.score-suffix { font-size: 15px; font-weight: 600; color: var(--text2); letter-spacing: 1px; }
+.score-wrap input { width: 120px; text-align: right; }
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 200; align-items: center; justify-content: center; padding: 16px; }
 .modal-overlay.on { display: flex; }
 .modal { background: var(--bg); border-radius: 14px; padding: 20px; width: 100%; max-width: 400px; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 40px rgba(0,0,0,.25); }
@@ -149,7 +147,7 @@ tr:last-child td { border-bottom: none; }
       <div class="ff" id="e-custom-wrap" style="display:none"><label>場所名</label><input type="text" id="e-custom" placeholder="場所名を入力"></div>
       <div class="ff"><label>種別</label><select id="e-type"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
       <div class="ff"><label>順位</label><select id="e-rank"><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select></div>
-      <div class="ff"><label>持ち点</label><div class="score-wrap"><input type="number" id="e-score" placeholder="350" min="-999" max="999" oninput="clampScore('e-score')"><span class="score-suffix">00</span></div></div>
+      <div class="ff"><label>持ち点</label><input class="score-wrap" type="number" id="e-score" placeholder="例: 35000" min="-999999" max="999999" oninput="clampScore('e-score')"></div>
     </div>
     <div class="modal-footer">
       <button class="sub" style="flex:1" id="save-edit-btn" onclick="saveEdit()">保存</button>
@@ -285,8 +283,8 @@ function clampScore(inputId) {
   const input = $(inputId);
   let val = parseInt(input.value);
   if (isNaN(val)) return;
-  if (val > 999) input.value = 999;
-  if (val < -999) input.value = -999;
+  if (val > 999999) input.value = 999999;
+  if (val < -999999) input.value = -999999;
 }
 
 function months() { return [...new Set(DATA.map(r => r.date.slice(0,7)))].sort(); }
@@ -392,7 +390,7 @@ function renderAdd() {
 async function doAdd() {
   const date=$('a-date').value, plEl=$('a-place');
   const place=plEl.value==='__custom__'?$('a-custom').value.trim():plEl.value;
-  const type=$('a-type').value, rn=parseInt($('a-rank').value), score=(parseInt($('a-score').value)||0)*100;
+  const type=$('a-type').value, rn=parseInt($('a-rank').value), score=parseInt($('a-score').value)||0;
   if (!date||!place) { alert('日付と場所を入力してください'); return; }
   const btn=$('add-submit-btn');
   btn.disabled=true; btn.textContent='保存中...';
@@ -429,7 +427,7 @@ function openEdit(id) {
   $('e-place').value=isPreset?r.place:'__custom__';
   $('e-custom').value=isPreset?'':r.place;
   $('e-custom-wrap').style.display=isPreset?'none':'flex';
-  $('e-type').value=r.type; $('e-rank').value=r.rank_num; $('e-score').value=Math.round(r.score/100);
+  $('e-type').value=r.type; $('e-rank').value=r.rank_num; $('e-score').value=r.score;
   $('edit-modal').classList.add('on');
 }
 function closeEditModal() { editingId=null; $('edit-modal').classList.remove('on'); }
@@ -439,7 +437,7 @@ async function saveEdit() {
   const idx=DATA.findIndex(x=>x.id===editingId); if(idx===-1) return;
   const date=$('e-date').value;
   const place=$('e-place').value==='__custom__'?$('e-custom').value.trim():$('e-place').value;
-  const type=$('e-type').value, rank_num=parseInt($('e-rank').value), score=(parseInt($('e-score').value)||0)*100;
+  const type=$('e-type').value, rank_num=parseInt($('e-rank').value), score=parseInt($('e-score').value)||0;
   if (!date||!place) { alert('日付と場所を入力してください'); return; }
   const btn=$('save-edit-btn');
   btn.disabled=true; btn.textContent='保存中...';
@@ -674,7 +672,7 @@ async function init(){
       <div class="ff" id="a-custom-wrap" style="display:none"><label>場所名</label><input type="text" id="a-custom" placeholder="場所名を入力"></div>
       <div class="ff"><label>種別</label><select id="a-type"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
       <div class="ff"><label>順位</label><select id="a-rank"><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select></div>
-      <div class="ff"><label>持ち点</label><div class="score-wrap"><input type="number" id="a-score" placeholder="350" min="-999" max="999" oninput="clampScore('a-score')"><span class="score-suffix">00</span></div></div>
+      <div class="ff"><label>持ち点</label><input class="score-wrap" type="number" id="a-score" placeholder="例: 35000" min="-999999" max="999999" oninput="clampScore('a-score')"></div>
     </div>
     <button class="sub" id="add-submit-btn" onclick="doAdd()">+ 追加する</button>
     <div id="add-ok" class="ok" style="display:none">✓ 追加しました！</div>
