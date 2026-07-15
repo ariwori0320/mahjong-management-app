@@ -107,11 +107,13 @@ tr:last-child td { border-bottom: none; }
 .score-input { width: 130px; text-align: right; cursor: pointer; caret-color: transparent; }
 /* 電卓モーダル */
 .calc-overlay { flex: 1; background: rgba(0,0,0,0.55); }
-.calc-panel { background: var(--bg2); border-radius: 20px 20px 0 0; padding: 16px 14px 32px; }
-.calc-disp { font-size: 38px; font-weight: 700; text-align: right; padding: 10px 16px; color: var(--text); background: var(--bg); border-radius: 12px; margin-bottom: 12px; min-height: 68px; letter-spacing: 1px; word-break: break-all; }
-.calc-disp.neg { color: var(--red); }
-.calc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.calc-btn { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px; font-size: 22px; font-weight: 600; color: var(--text); cursor: pointer; font-family: var(--font); }
+.calc-panel { background: var(--bg2); border-radius: 16px 16px 0 0; padding: 12px 12px 28px; max-width: 360px; width: 100%; margin: 0 auto; }
+.calc-disp { font-size: 30px; font-weight: 700; text-align: right; padding: 8px 14px; color: var(--text); background: var(--bg); border-radius: 10px; margin-bottom: 10px; min-height: 54px; display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+.calc-disp-num { letter-spacing: 1px; }
+.calc-disp-num.neg { color: var(--red); }
+.calc-disp-fixed { color: var(--text3); font-size: 22px; }
+.calc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.calc-btn { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 13px; font-size: 18px; font-weight: 600; color: var(--text); cursor: pointer; font-family: var(--font); }
 .calc-btn:active { opacity: .7; }
 .calc-btn.fn { color: var(--blue); }
 .calc-btn.ok { background: var(--green); color: #141d2b; border-color: var(--green); }
@@ -146,7 +148,7 @@ tr:last-child td { border-bottom: none; }
 <div id="calc-modal" style="display:none;position:fixed;inset:0;z-index:3000;flex-direction:column;justify-content:flex-end">
   <div class="calc-overlay" onclick="calcClose()"></div>
   <div class="calc-panel">
-    <div id="calc-disp" class="calc-disp">0</div>
+    <div class="calc-disp"><span id="calc-disp" class="calc-disp-num">0</span><span class="calc-disp-fixed">00</span></div>
     <div class="calc-grid">
       <button class="calc-btn fn" onclick="calcClear()">C</button>
       <button class="calc-btn fn" onclick="calcSign()">±</button>
@@ -180,7 +182,7 @@ tr:last-child td { border-bottom: none; }
         </select>
       </div>
       <div class="ff" id="e-custom-wrap" style="display:none"><label>場所名</label><input type="text" id="e-custom" placeholder="場所名を入力"></div>
-      <div class="ff"><label>種別</label><select id="e-type"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
+      <div class="ff"><label>種別</label><select id="e-type" onchange="updateRankOptions('e-type','e-rank')"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
       <div class="ff"><label>順位</label><select id="e-rank"><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select></div>
       <div class="ff"><label>持ち点</label><input class="score-input" type="text" id="e-score" placeholder="タップして入力" readonly onclick="openCalc('e-score')"></div>
     </div>
@@ -318,11 +320,16 @@ let calcTarget = null;
 
 function openCalc(inputId) {
   calcTarget = inputId;
-  const val = $(inputId).value;
-  const disp = $('calc-disp');
-  disp.textContent = val || '0';
-  disp.className = 'calc-disp' + (val.startsWith('-') ? ' neg' : '');
+  const stored = parseInt($(inputId).value) || 0;
+  const hundreds = stored !== 0 ? Math.round(stored / 100) : 0;
+  setCalcDisp(String(hundreds === 0 ? '0' : hundreds));
   $('calc-modal').style.display = 'flex';
+}
+
+function setCalcDisp(val) {
+  const el = $('calc-disp');
+  el.textContent = val;
+  el.className = 'calc-disp-num' + (val.startsWith('-') ? ' neg' : '');
 }
 
 function calcClose() {
@@ -331,8 +338,7 @@ function calcClose() {
 }
 
 function calcDigit(d) {
-  const disp = $('calc-disp');
-  const cur = disp.textContent;
+  const cur = $('calc-disp').textContent;
   const neg = cur.startsWith('-');
   const abs = neg ? cur.slice(1) : cur;
   let next;
@@ -342,40 +348,40 @@ function calcDigit(d) {
   } else {
     next = cur + d;
   }
-  if (Math.abs(parseInt(next)) <= 999999) {
-    disp.textContent = next;
-    disp.className = 'calc-disp' + (next.startsWith('-') ? ' neg' : '');
-  }
+  if (Math.abs(parseInt(next) || 0) <= 9999) setCalcDisp(next);
 }
 
 function calcSign() {
-  const disp = $('calc-disp');
-  const cur = disp.textContent;
+  const cur = $('calc-disp').textContent;
   if (cur === '0') return;
-  disp.textContent = cur.startsWith('-') ? cur.slice(1) : '-' + cur;
-  disp.className = 'calc-disp' + (disp.textContent.startsWith('-') ? ' neg' : '');
+  setCalcDisp(cur.startsWith('-') ? cur.slice(1) : '-' + cur);
 }
 
 function calcBack() {
-  const disp = $('calc-disp');
-  const cur = disp.textContent;
+  const cur = $('calc-disp').textContent;
   if (cur === '0') return;
   const next = cur.slice(0, -1);
-  disp.textContent = (!next || next === '-') ? '0' : next;
-  disp.className = 'calc-disp' + (disp.textContent.startsWith('-') ? ' neg' : '');
+  setCalcDisp((!next || next === '-') ? '0' : next);
 }
 
-function calcClear() {
-  const disp = $('calc-disp');
-  disp.textContent = '0';
-  disp.className = 'calc-disp';
-}
+function calcClear() { setCalcDisp('0'); }
 
 function calcOK() {
   if (!calcTarget) return;
   const val = $('calc-disp').textContent;
-  $(calcTarget).value = val === '0' ? '' : val;
+  const num = parseInt(val) || 0;
+  $(calcTarget).value = num === 0 ? '' : num * 100;
   calcClose();
+}
+
+// ===== 三麻時は順位を1〜3に制限 =====
+function updateRankOptions(typeId, rankId) {
+  const isSanma = $(typeId).value === '三麻';
+  const rank = $(rankId);
+  const cur = rank.value;
+  rank.innerHTML = '<option value="1">1位</option><option value="2">2位</option><option value="3">3位</option>'
+    + (isSanma ? '' : '<option value="4">4位</option>');
+  rank.value = (isSanma && cur === '4') ? '3' : cur;
 }
 
 function months() { return [...new Set(DATA.map(r => r.date.slice(0,7)))].sort(); }
@@ -518,7 +524,7 @@ function openEdit(id) {
   $('e-place').value=isPreset?r.place:'__custom__';
   $('e-custom').value=isPreset?'':r.place;
   $('e-custom-wrap').style.display=isPreset?'none':'flex';
-  $('e-type').value=r.type; $('e-rank').value=r.rank_num; $('e-score').value=r.score;
+  $('e-type').value=r.type; updateRankOptions('e-type','e-rank'); $('e-rank').value=r.rank_num; $('e-score').value=r.score;
   $('edit-modal').classList.add('on');
 }
 function closeEditModal() { editingId=null; $('edit-modal').classList.remove('on'); }
@@ -761,7 +767,7 @@ async function init(){
         <select id="a-place" onchange="toggleCustom()">${placeOptionHTML()}</select>
       </div>
       <div class="ff" id="a-custom-wrap" style="display:none"><label>場所名</label><input type="text" id="a-custom" placeholder="場所名を入力"></div>
-      <div class="ff"><label>種別</label><select id="a-type"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
+      <div class="ff"><label>種別</label><select id="a-type" onchange="updateRankOptions('a-type','a-rank')"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
       <div class="ff"><label>順位</label><select id="a-rank"><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select></div>
       <div class="ff"><label>持ち点</label><input class="score-input" type="text" id="a-score" placeholder="タップして入力" readonly onclick="openCalc('a-score')"></div>
     </div>
