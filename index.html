@@ -104,7 +104,17 @@ tr:last-child td { border-bottom: none; }
 .place-chip { padding: 4px 10px; font-size: 12px; border: 1px solid var(--border); border-radius: 20px; cursor: pointer; background: var(--bg2); color: var(--text2); font-family: var(--font); white-space: nowrap; }
 .place-chip.on { background: var(--blue); color: #141d2b; border-color: var(--blue); font-weight: 700; }
 /* スコア入力 */
-.score-wrap input { width: 120px; text-align: right; }
+.score-input { width: 130px; text-align: right; cursor: pointer; caret-color: transparent; }
+/* 電卓モーダル */
+.calc-overlay { flex: 1; background: rgba(0,0,0,0.55); }
+.calc-panel { background: var(--bg2); border-radius: 20px 20px 0 0; padding: 16px 14px 32px; }
+.calc-disp { font-size: 38px; font-weight: 700; text-align: right; padding: 10px 16px; color: var(--text); background: var(--bg); border-radius: 12px; margin-bottom: 12px; min-height: 68px; letter-spacing: 1px; word-break: break-all; }
+.calc-disp.neg { color: var(--red); }
+.calc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.calc-btn { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px; font-size: 22px; font-weight: 600; color: var(--text); cursor: pointer; font-family: var(--font); }
+.calc-btn:active { opacity: .7; }
+.calc-btn.fn { color: var(--blue); }
+.calc-btn.ok { background: var(--green); color: #141d2b; border-color: var(--green); }
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 200; align-items: center; justify-content: center; padding: 16px; }
 .modal-overlay.on { display: flex; }
 .modal { background: var(--bg); border-radius: 14px; padding: 20px; width: 100%; max-width: 400px; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 40px rgba(0,0,0,.25); }
@@ -132,6 +142,31 @@ tr:last-child td { border-bottom: none; }
 
 <div class="app" id="root"></div>
 
+<!-- 電卓モーダル -->
+<div id="calc-modal" style="display:none;position:fixed;inset:0;z-index:3000;flex-direction:column;justify-content:flex-end">
+  <div class="calc-overlay" onclick="calcClose()"></div>
+  <div class="calc-panel">
+    <div id="calc-disp" class="calc-disp">0</div>
+    <div class="calc-grid">
+      <button class="calc-btn fn" onclick="calcClear()">C</button>
+      <button class="calc-btn fn" onclick="calcSign()">±</button>
+      <button class="calc-btn fn" onclick="calcBack()">⌫</button>
+      <button class="calc-btn" onclick="calcDigit('7')">7</button>
+      <button class="calc-btn" onclick="calcDigit('8')">8</button>
+      <button class="calc-btn" onclick="calcDigit('9')">9</button>
+      <button class="calc-btn" onclick="calcDigit('4')">4</button>
+      <button class="calc-btn" onclick="calcDigit('5')">5</button>
+      <button class="calc-btn" onclick="calcDigit('6')">6</button>
+      <button class="calc-btn" onclick="calcDigit('1')">1</button>
+      <button class="calc-btn" onclick="calcDigit('2')">2</button>
+      <button class="calc-btn" onclick="calcDigit('3')">3</button>
+      <button class="calc-btn" onclick="calcDigit('00')">00</button>
+      <button class="calc-btn" onclick="calcDigit('0')">0</button>
+      <button class="calc-btn ok" onclick="calcOK()">OK</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="edit-modal" onclick="if(event.target===this)closeEditModal()">
   <div class="modal">
     <div class="modal-title">✏️ データを編集</div>
@@ -147,7 +182,7 @@ tr:last-child td { border-bottom: none; }
       <div class="ff" id="e-custom-wrap" style="display:none"><label>場所名</label><input type="text" id="e-custom" placeholder="場所名を入力"></div>
       <div class="ff"><label>種別</label><select id="e-type"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
       <div class="ff"><label>順位</label><select id="e-rank"><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select></div>
-      <div class="ff"><label>持ち点</label><input class="score-wrap" type="number" id="e-score" placeholder="例: 35000" min="-999999" max="999999" oninput="clampScore('e-score')"></div>
+      <div class="ff"><label>持ち点</label><input class="score-input" type="text" id="e-score" placeholder="タップして入力" readonly onclick="openCalc('e-score')"></div>
     </div>
     <div class="modal-footer">
       <button class="sub" style="flex:1" id="save-edit-btn" onclick="saveEdit()">保存</button>
@@ -278,13 +313,69 @@ function buildPlaceChips() {
   ).join('');
 }
 
-// ===== スコアバリデーション =====
-function clampScore(inputId) {
-  const input = $(inputId);
-  let val = parseInt(input.value);
-  if (isNaN(val)) return;
-  if (val > 999999) input.value = 999999;
-  if (val < -999999) input.value = -999999;
+// ===== 電卓 =====
+let calcTarget = null;
+
+function openCalc(inputId) {
+  calcTarget = inputId;
+  const val = $(inputId).value;
+  const disp = $('calc-disp');
+  disp.textContent = val || '0';
+  disp.className = 'calc-disp' + (val.startsWith('-') ? ' neg' : '');
+  $('calc-modal').style.display = 'flex';
+}
+
+function calcClose() {
+  $('calc-modal').style.display = 'none';
+  calcTarget = null;
+}
+
+function calcDigit(d) {
+  const disp = $('calc-disp');
+  const cur = disp.textContent;
+  const neg = cur.startsWith('-');
+  const abs = neg ? cur.slice(1) : cur;
+  let next;
+  if (abs === '0') {
+    const digits = d.replace(/^0+/, '') || '0';
+    next = (neg ? '-' : '') + digits;
+  } else {
+    next = cur + d;
+  }
+  if (Math.abs(parseInt(next)) <= 999999) {
+    disp.textContent = next;
+    disp.className = 'calc-disp' + (next.startsWith('-') ? ' neg' : '');
+  }
+}
+
+function calcSign() {
+  const disp = $('calc-disp');
+  const cur = disp.textContent;
+  if (cur === '0') return;
+  disp.textContent = cur.startsWith('-') ? cur.slice(1) : '-' + cur;
+  disp.className = 'calc-disp' + (disp.textContent.startsWith('-') ? ' neg' : '');
+}
+
+function calcBack() {
+  const disp = $('calc-disp');
+  const cur = disp.textContent;
+  if (cur === '0') return;
+  const next = cur.slice(0, -1);
+  disp.textContent = (!next || next === '-') ? '0' : next;
+  disp.className = 'calc-disp' + (disp.textContent.startsWith('-') ? ' neg' : '');
+}
+
+function calcClear() {
+  const disp = $('calc-disp');
+  disp.textContent = '0';
+  disp.className = 'calc-disp';
+}
+
+function calcOK() {
+  if (!calcTarget) return;
+  const val = $('calc-disp').textContent;
+  $(calcTarget).value = val === '0' ? '' : val;
+  calcClose();
 }
 
 function months() { return [...new Set(DATA.map(r => r.date.slice(0,7)))].sort(); }
@@ -672,7 +763,7 @@ async function init(){
       <div class="ff" id="a-custom-wrap" style="display:none"><label>場所名</label><input type="text" id="a-custom" placeholder="場所名を入力"></div>
       <div class="ff"><label>種別</label><select id="a-type"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
       <div class="ff"><label>順位</label><select id="a-rank"><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select></div>
-      <div class="ff"><label>持ち点</label><input class="score-wrap" type="number" id="a-score" placeholder="例: 35000" min="-999999" max="999999" oninput="clampScore('a-score')"></div>
+      <div class="ff"><label>持ち点</label><input class="score-input" type="text" id="a-score" placeholder="タップして入力" readonly onclick="openCalc('a-score')"></div>
     </div>
     <button class="sub" id="add-submit-btn" onclick="doAdd()">+ 追加する</button>
     <div id="add-ok" class="ok" style="display:none">✓ 追加しました！</div>
