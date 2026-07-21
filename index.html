@@ -229,6 +229,7 @@ const PAGE = 15;
 let DATA = [];
 let tab = 'dashboard', histPage = 1, editingId = null;
 let selectedPlaces = new Set();
+let trTab = '四麻';
 let trChart = null;
 
 const fmt = n => Number(n).toLocaleString('ja-JP');
@@ -313,6 +314,33 @@ function buildPlaceChips() {
   el.innerHTML = places().map(p =>
     `<button class="place-chip${selectedPlaces.has(p)?' on':''}" data-place="${p}" onclick="togglePlace('${p}')">${p}</button>`
   ).join('');
+}
+
+// ===== 累積平均着順チャート =====
+function setTrTab(t) {
+  trTab = t;
+  document.querySelectorAll('[data-tr-tab]').forEach(b => b.classList.toggle('on', b.dataset.trTab === t));
+  renderTrChart();
+}
+function renderTrChart() {
+  if (trChart) trChart.destroy();
+  const ms = months();
+  const calc = type => ms.map(m => {
+    const dd = DATA.filter(r => r.date.slice(0,7) <= m && r.type === type);
+    return dd.length ? +(dd.reduce((s,r) => s+r.rank_num, 0)/dd.length).toFixed(2) : null;
+  });
+  const vals = calc(trTab);
+  const active = vals.filter(v => v !== null);
+  const pad = 0.1;
+  const yMin = active.length ? Math.max(1, +(Math.min(...active)-pad).toFixed(2)) : 1;
+  const yMax = active.length ? Math.min(4, +(Math.max(...active)+pad).toFixed(2)) : 4;
+  const color = trTab === '四麻' ? '#d4a843' : '#22c5b0';
+  const dash = trTab === '三麻' ? [5,3] : undefined;
+  trChart = mkChart('tr','line',{
+    labels: ms.map(m => m.slice(2,4)+'/'+parseInt(m.slice(5))),
+    datasets: [{label:trTab, data:vals, borderColor:color, backgroundColor:color+'22',
+      tension:0.3, pointRadius:3, borderWidth:2, spanGaps:true, ...(dash?{borderDash:dash}:{})}]
+  },{animation:false,scales:{y:{reverse:true,min:yMin,max:yMax,ticks:{stepSize:0.1}}}});
 }
 
 // ===== 電卓 =====
@@ -452,18 +480,7 @@ function renderDash() {
   const s=stats(d);
   $('dm').innerHTML = metHTML(s);
   rdist('dr', s);
-  if (trChart) trChart.destroy();
-  const ms=months();
-  const yA=ms.map(m=>{const dd=DATA.filter(r=>r.date.slice(0,7)<=m&&r.type==='四麻');return dd.length?+(dd.reduce((s,r)=>s+r.rank_num,0)/dd.length).toFixed(2):null});
-  const sA=ms.map(m=>{const dd=DATA.filter(r=>r.date.slice(0,7)<=m&&r.type==='三麻');return dd.length?+(dd.reduce((s,r)=>s+r.rank_num,0)/dd.length).toFixed(2):null});
-  const allVals=[...yA,...sA].filter(v=>v!==null);
-  const pad=0.1;
-  const yMin=allVals.length?Math.max(1,+(Math.min(...allVals)-pad).toFixed(2)):1;
-  const yMax=allVals.length?Math.min(4,+(Math.max(...allVals)+pad).toFixed(2)):4;
-  trChart = mkChart('tr','line',{labels:ms.map(m=>m.slice(2,4)+'/'+parseInt(m.slice(5))),datasets:[
-    {label:'四麻',data:yA,borderColor:'#d4a843',backgroundColor:'#d4a84322',tension:0.3,pointRadius:3,borderWidth:2,spanGaps:true},
-    {label:'三麻',data:sA,borderColor:'#22c5b0',backgroundColor:'#22c5b022',tension:0.3,pointRadius:3,borderWidth:2,spanGaps:true,borderDash:[5,3]}
-  ]},{animation:false,scales:{y:{reverse:true,min:yMin,max:yMax,ticks:{stepSize:0.1}}}});
+  renderTrChart();
 }
 function renderHist() {
   const t=$('ht').value, p=$('hp').value, m=$('hm').value, r=$('hr').value;
@@ -709,10 +726,12 @@ async function init(){
     <div id="dr"></div>
   </div>
   <div>
-    <div class="sec-label">累積平均着順（その月までの全体平均）</div>
-    <div style="display:flex;gap:12px;margin-bottom:4px;font-size:11px;color:#666">
-      <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:3px;background:#d4a843;display:inline-block;border-radius:2px"></span>四麻</span>
-      <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:3px;background:#22c5b0;display:inline-block;border-radius:2px"></span>三麻</span>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div class="sec-label" style="margin-bottom:0">累積平均着順</div>
+      <div style="display:flex;gap:4px">
+        <button class="place-chip on" data-tr-tab="四麻" onclick="setTrTab('四麻')">四麻</button>
+        <button class="place-chip" data-tr-tab="三麻" onclick="setTrTab('三麻')">三麻</button>
+      </div>
     </div>
     <div style="height:180px"><canvas id="c-tr"></canvas></div>
   </div>
