@@ -456,10 +456,14 @@ function renderDash() {
   const ms=months();
   const yA=ms.map(m=>{const dd=DATA.filter(r=>r.date.slice(0,7)<=m&&r.type==='四麻');return dd.length?+(dd.reduce((s,r)=>s+r.rank_num,0)/dd.length).toFixed(2):null});
   const sA=ms.map(m=>{const dd=DATA.filter(r=>r.date.slice(0,7)<=m&&r.type==='三麻');return dd.length?+(dd.reduce((s,r)=>s+r.rank_num,0)/dd.length).toFixed(2):null});
+  const allVals=[...yA,...sA].filter(v=>v!==null);
+  const pad=0.1;
+  const yMin=allVals.length?Math.max(1,+(Math.min(...allVals)-pad).toFixed(2)):1;
+  const yMax=allVals.length?Math.min(4,+(Math.max(...allVals)+pad).toFixed(2)):4;
   trChart = mkChart('tr','line',{labels:ms.map(m=>m.slice(2,4)+'/'+parseInt(m.slice(5))),datasets:[
-    {label:'四麻',data:yA,borderColor:'#d4a843',backgroundColor:'#d4a84322',tension:0.3,pointRadius:4,spanGaps:true},
-    {label:'三麻',data:sA,borderColor:'#22c5b0',backgroundColor:'#22c5b022',tension:0.3,pointRadius:4,spanGaps:true,borderDash:[5,3]}
-  ]},{animation:false,scales:{y:{reverse:true,min:1.5,max:3,ticks:{stepSize:0.5}}}});
+    {label:'四麻',data:yA,borderColor:'#d4a843',backgroundColor:'#d4a84322',tension:0.3,pointRadius:3,borderWidth:2,spanGaps:true},
+    {label:'三麻',data:sA,borderColor:'#22c5b0',backgroundColor:'#22c5b022',tension:0.3,pointRadius:3,borderWidth:2,spanGaps:true,borderDash:[5,3]}
+  ]},{animation:false,scales:{y:{reverse:true,min:yMin,max:yMax,ticks:{stepSize:0.1}}}});
 }
 function renderHist() {
   const t=$('ht').value, p=$('hp').value, m=$('hm').value, r=$('hr').value;
