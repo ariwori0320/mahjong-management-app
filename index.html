@@ -459,7 +459,7 @@ function renderDash() {
   trChart = mkChart('tr','line',{labels:ms.map(m=>m.slice(2,4)+'/'+parseInt(m.slice(5))),datasets:[
     {label:'四麻',data:yA,borderColor:'#d4a843',backgroundColor:'#d4a84322',tension:0.3,pointRadius:4,spanGaps:true},
     {label:'三麻',data:sA,borderColor:'#22c5b0',backgroundColor:'#22c5b022',tension:0.3,pointRadius:4,spanGaps:true,borderDash:[5,3]}
-  ]},{animation:false,scales:{y:{reverse:true,min:1,max:4,ticks:{stepSize:0.5}}}});
+  ]},{animation:false,scales:{y:{reverse:true,min:1.5,max:3,ticks:{stepSize:0.5}}}});
 }
 function renderHist() {
   const t=$('ht').value, p=$('hp').value, m=$('hm').value, r=$('hr').value;
