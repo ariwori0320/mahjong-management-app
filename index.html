@@ -176,17 +176,14 @@ tr:last-child td { border-bottom: none; }
     <div class="fg">
       <div class="ff"><label>日付</label><input type="date" id="e-date"></div>
       <div class="ff"><label>場所</label>
-        <select id="e-place" onchange="toggleEditCustom()">
-          <option>セット</option><option>フリー</option><option>ロケット団</option>
-          <option>雀魂</option><option>日本オープン</option><option>ZENTSU大会</option>
-          <option value="__custom__">その他...</option>
-        </select>
+        <select id="e-place" onchange="toggleEditCustom()"></select>
       </div>
       <div class="ff" id="e-custom-wrap" style="display:none"><label>場所名</label><input type="text" id="e-custom" placeholder="場所名を入力"></div>
       <div class="ff"><label>種別</label><select id="e-type" onchange="updateRankOptions('e-type','e-rank')"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
       <div class="ff"><label>順位</label><select id="e-rank"><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select></div>
       <div class="ff"><label>持ち点</label><input class="score-input" type="text" id="e-score" placeholder="タップして入力" readonly onclick="openCalc('e-score')"></div>
     </div>
+    <div id="edit-err" style="display:none;color:var(--red);font-size:12px;margin-bottom:8px;text-align:center"></div>
     <div class="modal-footer">
       <button class="sub" style="flex:1" id="save-edit-btn" onclick="saveEdit()">保存</button>
       <button class="cls-btn" onclick="closeEditModal()">キャンセル</button>
@@ -240,6 +237,7 @@ let tab = 'dashboard', histPage = 1, editingId = null;
 let selectedPlaces = new Set();
 let trTab = '四麻';
 let trChart = null;
+let operating = false;
 
 const fmt = n => Number(n).toLocaleString('ja-JP');
 const $ = id => document.getElementById(id);
@@ -553,10 +551,12 @@ function renderAdd() {
 
 // ===== CRUD =====
 async function doAdd() {
+  if (operating) return;
   const date=$('a-date').value, plEl=$('a-place');
   const place=plEl.value==='__custom__'?$('a-custom').value.trim():plEl.value;
   const type=$('a-type').value, rn=parseInt($('a-rank').value), score=parseInt($('a-score').value)||0;
   if (!date||!place) { alert('日付と場所を入力してください'); return; }
+  operating=true;
   const btn=$('add-submit-btn');
   btn.disabled=true; btn.textContent='保存中...';
   try {
@@ -568,8 +568,10 @@ async function doAdd() {
     $('add-ok').style.display='block';
     setTimeout(()=>$('add-ok').style.display='none', 2500);
     renderAdd(); refreshFilters(); updateHeaderCount();
-  } catch(e) { alert('追加失敗: '+e.message); }
-  finally { btn.disabled=false; btn.textContent='+ 追加する'; }
+  } catch(e) {
+    const err=$('add-err'); if(err){err.textContent='⚠ 追加失敗: '+e.message;err.style.display='block';setTimeout(()=>err.style.display='none',4000);}
+  }
+  finally { btn.disabled=false; btn.textContent='+ 追加する'; operating=false; }
 }
 
 function toggleCustom() { $('a-custom-wrap').style.display=$('a-place').value==='__custom__'?'flex':'none'; }
@@ -598,12 +600,13 @@ function openEdit(id) {
 function closeEditModal() { editingId=null; $('edit-modal').classList.remove('on'); }
 
 async function saveEdit() {
-  if (editingId===null) return;
+  if (operating || editingId===null) return;
   const idx=DATA.findIndex(x=>x.id===editingId); if(idx===-1) return;
   const date=$('e-date').value;
   const place=$('e-place').value==='__custom__'?$('e-custom').value.trim():$('e-place').value;
   const type=$('e-type').value, rank_num=parseInt($('e-rank').value), score=parseInt($('e-score').value)||0;
   if (!date||!place) { alert('日付と場所を入力してください'); return; }
+  operating=true;
   const btn=$('save-edit-btn');
   btn.disabled=true; btn.textContent='保存中...';
   try {
@@ -612,12 +615,16 @@ async function saveEdit() {
     closeEditModal(); renderHist();
     if(tab==='dashboard') renderDash();
     refreshFilters(); updateHeaderCount();
-  } catch(e) { alert('更新失敗: '+e.message); }
-  finally { btn.disabled=false; btn.textContent='保存'; }
+  } catch(e) {
+    const err=$('edit-err'); if(err){err.textContent='⚠ 更新失敗: '+e.message;err.style.display='block';}
+  }
+  finally { btn.disabled=false; btn.textContent='保存'; operating=false; }
 }
 
 async function deleteRecord(id) {
+  if (operating) return;
   if (!confirm('このデータを削除しますか？')) return;
+  operating=true;
   try {
     await deleteOne(id);
     DATA=DATA.filter(x=>x.id!==id);
@@ -626,6 +633,7 @@ async function deleteRecord(id) {
     if(tab==='dashboard') renderDash();
     refreshFilters(); updateHeaderCount();
   } catch(e) { alert('削除失敗: '+e.message); }
+  finally { operating=false; }
 }
 function deleteFromEdit() { if(editingId!==null) deleteRecord(editingId); }
 
@@ -678,24 +686,36 @@ function parseCSV() {
 }
 
 async function importCSV() {
-  if (!csvRows.length) return;
-  const added = csvRows.length;
+  if (!csvRows.length || operating) return;
+  // BUG-004: 既存データと完全一致する行を除外して重複防止
+  const toInsert = csvRows.filter(r => !DATA.some(d =>
+    d.date===r.date && d.place===r.place && d.type===r.type &&
+    d.rank_num===r.rank_num && d.score===r.score
+  ));
+  const skipped = csvRows.length - toInsert.length;
+  if (toInsert.length === 0) {
+    $('csv-status').className='ustatus error';
+    $('csv-status').textContent='⚠ 全件が既存データと重複するためスキップしました';
+    return;
+  }
+  operating=true;
+  const added = toInsert.length;
   const btn = $('csv-import-btn');
   btn.disabled=true; btn.textContent='追加中...';
   try {
-    await insertBatch(csvRows);
+    await insertBatch(toInsert);
     DATA = await fetchAll();
     csvRows=[];
     $('csv-input').value='';
     $('csv-preview').style.display='none';
     $('csv-confirm').style.display='none';
     $('csv-status').className='ustatus success';
-    $('csv-status').textContent=`✅ ${added}件を追加しました（合計${DATA.length}件）`;
+    $('csv-status').textContent=`✅ ${added}件を追加しました（合計${DATA.length}件）${skipped?' ・重複'+skipped+'件スキップ':''}`;
     renderAdd(); refreshFilters(); updateHeaderCount();
   } catch(e) {
     $('csv-status').className='ustatus error';
     $('csv-status').textContent='追加失敗: '+e.message;
-  }
+  } finally { operating=false; }
   finally { btn.disabled=false; btn.textContent='✓ このデータを追加する'; }
 }
 function cancelCSV() {
@@ -844,6 +864,7 @@ async function init(){
     </div>
     <button class="sub" id="add-submit-btn" onclick="doAdd()">+ 追加する</button>
     <div id="add-ok" class="ok" style="display:none">✓ 追加しました！</div>
+    <div id="add-err" style="display:none;color:var(--red);font-size:12px;margin-top:6px;text-align:center"></div>
   </div>
 
   <div class="af">
