@@ -556,22 +556,30 @@ async function doAdd() {
   const place=plEl.value==='__custom__'?$('a-custom').value.trim():plEl.value;
   const type=$('a-type').value, rn=parseInt($('a-rank').value), score=parseInt($('a-score').value)||0;
   if (!date||!place) { alert('日付と場所を入力してください'); return; }
+  // 楽観的更新: 先にUIを反映
+  const tempId = -(performance.now() * 1000 | 0);
+  DATA.push({id:tempId, date, place, type, rank_num:rn, score});
+  DATA.sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
+  if (plEl.value === '__custom__') { saveCustomPlace(place); refreshAddPlaceSelect(place); }
+  $('a-score').value='';
+  $('add-ok').style.display='block';
+  setTimeout(()=>$('add-ok').style.display='none', 2500);
+  renderAdd(); refreshFilters(); updateHeaderCount();
+  // バックグラウンドで保存
   operating=true;
   const btn=$('add-submit-btn');
-  btn.disabled=true; btn.textContent='保存中...';
+  btn.disabled=true;
   try {
     const rec = await insertOne({date, place, type, rank_num:rn, score});
-    DATA.push(rec);
-    DATA.sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
-    if (plEl.value === '__custom__') { saveCustomPlace(place); refreshAddPlaceSelect(place); }
-    $('a-score').value='';
-    $('add-ok').style.display='block';
-    setTimeout(()=>$('add-ok').style.display='none', 2500);
-    renderAdd(); refreshFilters(); updateHeaderCount();
+    const idx=DATA.findIndex(x=>x.id===tempId);
+    if(idx!==-1) DATA[idx]=rec;
   } catch(e) {
+    DATA=DATA.filter(x=>x.id!==tempId);
+    $('add-ok').style.display='none';
+    renderAdd(); refreshFilters(); updateHeaderCount();
     const err=$('add-err'); if(err){err.textContent='⚠ 追加失敗: '+e.message;err.style.display='block';setTimeout(()=>err.style.display='none',4000);}
   }
-  finally { btn.disabled=false; btn.textContent='+ 追加する'; operating=false; }
+  finally { btn.disabled=false; operating=false; }
 }
 
 function toggleCustom() { $('a-custom-wrap').style.display=$('a-place').value==='__custom__'?'flex':'none'; }
@@ -606,33 +614,46 @@ async function saveEdit() {
   const place=$('e-place').value==='__custom__'?$('e-custom').value.trim():$('e-place').value;
   const type=$('e-type').value, rank_num=parseInt($('e-rank').value), score=parseInt($('e-score').value)||0;
   if (!date||!place) { alert('日付と場所を入力してください'); return; }
+  const savedId=editingId, prev={...DATA[idx]};
+  // 楽観的更新: 先にUIを反映してモーダルを閉じる
+  DATA[idx]={...DATA[idx],date,place,type,rank_num,score};
+  closeEditModal(); renderHist();
+  if(tab==='dashboard') renderDash();
+  refreshFilters(); updateHeaderCount();
+  // バックグラウンドで保存
   operating=true;
-  const btn=$('save-edit-btn');
-  btn.disabled=true; btn.textContent='保存中...';
   try {
-    await updateOne(editingId,{date,place,type,rank_num,score});
-    DATA[idx]={...DATA[idx],date,place,type,rank_num,score};
-    closeEditModal(); renderHist();
-    if(tab==='dashboard') renderDash();
-    refreshFilters(); updateHeaderCount();
+    await updateOne(savedId,{date,place,type,rank_num,score});
   } catch(e) {
-    const err=$('edit-err'); if(err){err.textContent='⚠ 更新失敗: '+e.message;err.style.display='block';}
+    DATA[idx]=prev;
+    renderHist(); if(tab==='dashboard') renderDash();
+    refreshFilters(); updateHeaderCount();
+    alert('更新失敗: '+e.message);
   }
-  finally { btn.disabled=false; btn.textContent='保存'; operating=false; }
+  finally { operating=false; }
 }
 
 async function deleteRecord(id) {
   if (operating) return;
   if (!confirm('このデータを削除しますか？')) return;
+  const rec=DATA.find(x=>x.id===id);
+  const recIdx=DATA.indexOf(rec);
+  // 楽観的更新: 先にUIから除去
+  DATA=DATA.filter(x=>x.id!==id);
+  if(editingId===id) closeEditModal();
+  renderHist(); if(tab==='dashboard') renderDash();
+  refreshFilters(); updateHeaderCount();
+  // バックグラウンドで削除
   operating=true;
   try {
     await deleteOne(id);
-    DATA=DATA.filter(x=>x.id!==id);
-    if(editingId===id) closeEditModal();
-    renderHist();
-    if(tab==='dashboard') renderDash();
+  } catch(e) {
+    DATA.splice(recIdx,0,rec);
+    DATA.sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
+    renderHist(); if(tab==='dashboard') renderDash();
     refreshFilters(); updateHeaderCount();
-  } catch(e) { alert('削除失敗: '+e.message); }
+    alert('削除失敗: '+e.message);
+  }
   finally { operating=false; }
 }
 function deleteFromEdit() { if(editingId!==null) deleteRecord(editingId); }
@@ -704,7 +725,9 @@ async function importCSV() {
   btn.disabled=true; btn.textContent='追加中...';
   try {
     await insertBatch(toInsert);
-    DATA = await fetchAll();
+    // fetchAll()の代わりにローカルに追記してサーバー往復を省く
+    toInsert.forEach(r => DATA.push({id:-(performance.now()*1000|0), ...r}));
+    DATA.sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
     csvRows=[];
     $('csv-input').value='';
     $('csv-preview').style.display='none';
