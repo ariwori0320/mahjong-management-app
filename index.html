@@ -149,6 +149,7 @@ tr:last-child td { border-bottom: none; }
   <div class="calc-overlay" onclick="calcClose()"></div>
   <div class="calc-panel">
     <div class="calc-disp"><span id="calc-disp" class="calc-disp-num">0</span><span class="calc-disp-fixed">00</span></div>
+    <div id="calc-preview" style="text-align:right;font-size:11px;color:var(--text3);margin:-4px 2px 8px;height:14px"> </div>
     <div class="calc-grid">
       <button class="calc-btn fn" onclick="calcClear()">C</button>
       <button class="calc-btn fn" onclick="calcSign()">±</button>
@@ -205,13 +206,21 @@ const LS_MIGRATE = 'mahjong_data_v1';
 const LS_CUSTOM_PLACES = 'mahjong_custom_places';
 const PLACES_PRESET = ['セット','フリー','ロケット団','雀魂','日本オープン','ZENTSU大会'];
 
+let _customPlacesCache = null;
 function loadCustomPlaces() {
-  try { return JSON.parse(localStorage.getItem(LS_CUSTOM_PLACES) || '[]'); } catch { return []; }
+  if (_customPlacesCache) return _customPlacesCache;
+  try { _customPlacesCache = JSON.parse(localStorage.getItem(LS_CUSTOM_PLACES) || '[]'); }
+  catch { _customPlacesCache = []; }
+  return _customPlacesCache;
 }
 function saveCustomPlace(place) {
   if (PLACES_PRESET.includes(place)) return;
   const list = loadCustomPlaces();
-  if (!list.includes(place)) { list.push(place); localStorage.setItem(LS_CUSTOM_PLACES, JSON.stringify(list)); }
+  if (!list.includes(place)) {
+    list.push(place);
+    localStorage.setItem(LS_CUSTOM_PLACES, JSON.stringify(list));
+    _customPlacesCache = list;
+  }
 }
 function placeOptionHTML(selected) {
   const custom = loadCustomPlaces();
@@ -311,9 +320,16 @@ function togglePlace(place) {
 }
 function buildPlaceChips() {
   const el = $('dp-chips'); if (!el) return;
-  el.innerHTML = places().map(p =>
-    `<button class="place-chip${selectedPlaces.has(p)?' on':''}" data-place="${p}" onclick="togglePlace('${p}')">${p}</button>`
-  ).join('');
+  el.innerHTML = '';
+  el.onclick = null;
+  places().forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'place-chip' + (selectedPlaces.has(p) ? ' on' : '');
+    btn.dataset.place = p;
+    btn.textContent = p;
+    btn.addEventListener('click', () => togglePlace(p));
+    el.appendChild(btn);
+  });
 }
 
 // ===== 累積平均着順チャート =====
@@ -324,11 +340,30 @@ function setTrTab(t) {
 }
 function renderTrChart() {
   if (trChart) trChart.destroy();
-  const ms = months();
-  const calc = type => ms.map(m => {
-    const dd = DATA.filter(r => r.date.slice(0,7) <= m && r.type === type);
-    return dd.length ? +(dd.reduce((s,r) => s+r.rank_num, 0)/dd.length).toFixed(2) : null;
+  // BUG-001: ダッシュボードの年・場所フィルターを適用
+  const yr = $('d-year') ? $('d-year').value : 'all';
+  const baseData = DATA.filter(r =>
+    (yr === 'all' || r.date.startsWith(yr)) &&
+    (selectedPlaces.size === 0 || selectedPlaces.has(r.place))
+  );
+  const ms = [...new Set(baseData.map(r => r.date.slice(0,7)))].sort();
+  // PERF-001: O(N×M)→O(N+M) プレフィックスサム
+  const byMonth = {};
+  baseData.forEach(r => {
+    const m = r.date.slice(0,7);
+    if (!byMonth[m]) byMonth[m] = {};
+    if (!byMonth[m][r.type]) byMonth[m][r.type] = {sum:0, cnt:0};
+    byMonth[m][r.type].sum += r.rank_num;
+    byMonth[m][r.type].cnt++;
   });
+  const calc = type => {
+    let cumSum = 0, cumCnt = 0;
+    return ms.map(m => {
+      const e = byMonth[m]?.[type];
+      if (e) { cumSum += e.sum; cumCnt += e.cnt; }
+      return cumCnt > 0 ? +(cumSum/cumCnt).toFixed(2) : null;
+    });
+  };
   const vals = calc(trTab);
   const active = vals.filter(v => v !== null);
   const pad = 0.1;
@@ -358,6 +393,12 @@ function setCalcDisp(val) {
   const el = $('calc-disp');
   el.textContent = val;
   el.className = 'calc-disp-num' + (val.startsWith('-') ? ' neg' : '');
+  const prev = $('calc-preview');
+  if (prev) {
+    const num = parseInt(val) || 0;
+    prev.textContent = '= ' + fmt(num * 100) + '点';
+    prev.style.color = num < 0 ? 'var(--red)' : 'var(--text3)';
+  }
 }
 
 function calcClose() {
@@ -376,7 +417,14 @@ function calcDigit(d) {
   } else {
     next = cur + d;
   }
-  if (Math.abs(parseInt(next) || 0) <= 9999) setCalcDisp(next);
+  if (Math.abs(parseInt(next) || 0) <= 9999) {
+    setCalcDisp(next);
+  } else {
+    const el = $('calc-disp');
+    el.style.color = 'var(--red)';
+    setTimeout(() => { el.style.color = ''; }, 200);
+    if (navigator.vibrate) navigator.vibrate(50);
+  }
 }
 
 function calcSign() {
@@ -398,7 +446,7 @@ function calcOK() {
   if (!calcTarget) return;
   const val = $('calc-disp').textContent;
   const num = parseInt(val) || 0;
-  $(calcTarget).value = num === 0 ? '' : num * 100;
+  $(calcTarget).value = num * 100;
   calcClose();
 }
 
@@ -414,7 +462,6 @@ function updateRankOptions(typeId, rankId) {
 
 function months() { return [...new Set(DATA.map(r => r.date.slice(0,7)))].sort(); }
 function places() { return [...new Set(DATA.map(r => r.place))].sort(); }
-function filt(d,t,p) { return d.filter(r => (t==='all'||r.type===t) && (p==='all'||r.place===p)); }
 function stats(d) {
   if (!d.length) return {total:0,avg:0,savg:0,r1:0,r2:0,r3:0,r4:0};
   const n=d.length, avg=d.reduce((s,r)=>s+r.rank_num,0)/n, savg=d.reduce((s,r)=>s+r.score,0)/n;
@@ -612,7 +659,8 @@ function parseCSV() {
     if (type !== '四麻' && type !== '三麻') { errors.push(line); continue; }
     const rank_num = parseInt(rank);
     const scoreNum = parseInt(score);
-    if (!place || rank_num < 1 || rank_num > 4 || isNaN(scoreNum)) { errors.push(line); continue; }
+    const maxRank = type === '三麻' ? 3 : 4;
+    if (!place || rank_num < 1 || rank_num > maxRank || isNaN(scoreNum)) { errors.push(line); continue; }
     csvRows.push({ date, place, type, rank_num, score: scoreNum });
   }
 
@@ -677,7 +725,7 @@ async function init(){
     DATA = await fetchAll();
   } catch(e) {
     hideLoading();
-    $('root').innerHTML=`<div style="padding:40px 20px;text-align:center"><p style="color:var(--red);font-size:15px;margin-bottom:8px">⚠ 接続エラー</p><p style="font-size:12px;color:var(--text2)">${e.message}</p><p style="font-size:11px;color:var(--text3);margin-top:8px">SUPABASE_URL / SUPABASE_KEY を確認してください</p></div>`;
+    $('root').innerHTML=`<div style="padding:40px 20px;text-align:center"><p style="color:var(--red);font-size:15px;margin-bottom:8px">⚠ 接続エラー</p><p style="font-size:12px;color:var(--text2)">${e.message}</p><p style="font-size:11px;color:var(--text3);margin-top:8px">SUPABASE_URL / SUPABASE_KEY を確認してください</p><button onclick="init()" style="margin-top:16px;padding:10px 24px;background:var(--blue);color:#141d2b;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--font)">再接続する</button></div>`;
     return;
   }
 
@@ -717,7 +765,7 @@ async function init(){
     <hr class="filter-sep">
     <div class="filter-group">
       <label>場所（複数選択可）</label>
-      <div id="dp-chips" style="display:flex;flex-wrap:wrap;gap:4px">${ps.map(p=>`<button class="place-chip" data-place="${p}" onclick="togglePlace('${p}')">${p}</button>`).join('')}</div>
+      <div id="dp-chips" style="display:flex;flex-wrap:wrap;gap:4px"></div>
     </div>
   </div>
   <div class="mts" id="dm"></div>
@@ -747,7 +795,7 @@ async function init(){
       </div>
       <div class="filter-group">
         <label>月</label>
-        <select id="hm" onchange="histPage=1;renderHist()"><option value="all">全て</option>${ms.map(m=>`<option value="${m}">${m.slice(0,4)}年${parseInt(m.slice(5))}月</option>`).join('')}</select>
+        <select id="hm" onchange="if(this.value!=='all'){const f=$('hs-from'),t=$('hs-to');if(f)f.value='';if(t)t.value='';}histPage=1;renderHist()"><option value="all">全て</option>${ms.map(m=>`<option value="${m}">${m.slice(0,4)}年${parseInt(m.slice(5))}月</option>`).join('')}</select>
       </div>
       <div class="filter-group">
         <label>順位</label>
@@ -763,9 +811,9 @@ async function init(){
     <div class="filter-group">
       <label>期間</label>
       <div class="filter-row" style="gap:6px">
-        <input type="date" id="hs-from" onchange="histPage=1;renderHist()">
+        <input type="date" id="hs-from" onchange="if(this.value){const m=$('hm');if(m)m.value='all';}histPage=1;renderHist()">
         <span style="color:var(--text2)">〜</span>
-        <input type="date" id="hs-to" onchange="histPage=1;renderHist()">
+        <input type="date" id="hs-to" onchange="if(this.value){const m=$('hm');if(m)m.value='all';}histPage=1;renderHist()">
       </div>
     </div>
   </div>
@@ -821,6 +869,7 @@ async function init(){
 `;
 
   hideLoading();
+  buildPlaceChips();
   renderDash();
 }
 
