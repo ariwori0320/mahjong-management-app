@@ -738,8 +738,7 @@ async function importCSV() {
   } catch(e) {
     $('csv-status').className='ustatus error';
     $('csv-status').textContent='追加失敗: '+e.message;
-  } finally { operating=false; }
-  finally { btn.disabled=false; btn.textContent='✓ このデータを追加する'; }
+  } finally { btn.disabled=false; btn.textContent='✓ このデータを追加する'; operating=false; }
 }
 function cancelCSV() {
   csvRows=[];
