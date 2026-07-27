@@ -345,9 +345,10 @@ function setTrTab(t) {
 }
 function renderTrChart() {
   if (trChart) trChart.destroy();
-  // BUG-001: ダッシュボードの年・場所フィルターを適用
   const yr = $('d-year') ? $('d-year').value : 'all';
+  const dt = $('dt') ? $('dt').value : 'all';
   const baseData = DATA.filter(r =>
+    (dt === 'all' || (dt === 'event' ? !!r.event_name : r.type === dt)) &&
     (yr === 'all' || r.date.startsWith(yr)) &&
     (selectedPlaces.size === 0 || selectedPlaces.has(r.place))
   );
@@ -525,7 +526,7 @@ function renderDash() {
   const yr=$('d-year')?$('d-year').value:'all';
   const mo=$('d-month-only')?$('d-month-only').value:'all';
   let d = DATA.filter(r =>
-    (t==='all'||r.type===t) &&
+    (t==='all'||(t==='event'?!!r.event_name:r.type===t)) &&
     (yr==='all'||r.date.startsWith(yr)) &&
     (mo==='all'||r.date.slice(5,7)===mo) &&
     (selectedPlaces.size===0||selectedPlaces.has(r.place))
@@ -838,7 +839,7 @@ async function init(){
       </div>
       <div class="filter-group">
         <label>種別</label>
-        <select id="dt" onchange="renderDash()"><option value="all">全て</option><option value="四麻" selected>四麻</option><option value="三麻">三麻</option></select>
+        <select id="dt" onchange="renderDash()"><option value="all">全て</option><option value="四麻" selected>四麻</option><option value="三麻">三麻</option><option value="event">大会・イベント</option></select>
       </div>
     </div>
     <hr class="filter-sep">
