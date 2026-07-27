@@ -105,6 +105,11 @@ tr:last-child td { border-bottom: none; }
 .place-chip.on { background: var(--blue); color: #141d2b; border-color: var(--blue); font-weight: 700; }
 /* スコア入力 */
 .score-input { width: 130px; text-align: right; cursor: pointer; caret-color: transparent; }
+/* 大会/イベントタグ */
+.ev-tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; background: rgba(212,168,67,.18); color: var(--blue); border: 1px solid rgba(212,168,67,.35); white-space: nowrap; vertical-align: middle; }
+/* ダッシュボード期間ラベル */
+.dash-period { font-size: 12px; color: var(--text2); margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+.dash-period strong { color: var(--text); }
 /* 電卓モーダル */
 .calc-overlay { flex: 1; background: rgba(0,0,0,0.55); }
 .calc-panel { background: var(--bg2); border-radius: 16px 16px 0 0; padding: 12px 12px 28px; max-width: 360px; width: 100%; margin: 0 auto; }
@@ -182,6 +187,7 @@ tr:last-child td { border-bottom: none; }
       <div class="ff"><label>種別</label><select id="e-type" onchange="updateRankOptions('e-type','e-rank')"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
       <div class="ff"><label>順位</label><select id="e-rank"><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select></div>
       <div class="ff"><label>持ち点</label><input class="score-input" type="text" id="e-score" placeholder="タップして入力" readonly onclick="openCalc('e-score')"></div>
+      <div class="ff" style="grid-column:1/-1"><label>大会/イベント名</label><input type="text" id="e-event" placeholder="（任意）例: 春の大会、ZENTSU杯" style="width:100%"></div>
     </div>
     <div id="edit-err" style="display:none;color:var(--red);font-size:12px;margin-bottom:8px;text-align:center"></div>
     <div class="modal-footer">
@@ -256,7 +262,7 @@ async function fetchAll() {
 
 async function insertOne(r) {
   const { data, error } = await sb.from('management_games')
-    .insert([{ date: r.date, place: r.place, type: r.type, rank_num: r.rank_num, score: r.score }])
+    .insert([{ date: r.date, place: r.place, type: r.type, rank_num: r.rank_num, score: r.score, event_name: r.event_name||'' }])
     .select().single();
   if (error) throw error;
   return data;
@@ -264,7 +270,7 @@ async function insertOne(r) {
 
 async function updateOne(id, r) {
   const { error } = await sb.from('management_games')
-    .update({ date: r.date, place: r.place, type: r.type, rank_num: r.rank_num, score: r.score })
+    .update({ date: r.date, place: r.place, type: r.type, rank_num: r.rank_num, score: r.score, event_name: r.event_name||'' })
     .eq('id', id);
   if (error) throw error;
 }
@@ -275,7 +281,7 @@ async function deleteOne(id) {
 }
 
 async function insertBatch(records) {
-  const rows = records.map(r => ({ date: r.date, place: r.place, type: r.type, rank_num: r.rank_num, score: r.score }));
+  const rows = records.map(r => ({ date: r.date, place: r.place, type: r.type, rank_num: r.rank_num, score: r.score, event_name: r.event_name||'' }));
   for (let i = 0; i < rows.length; i += 500) {
     const { error } = await sb.from('management_games').insert(rows.slice(i, i + 500));
     if (error) throw error;
@@ -504,7 +510,8 @@ function rowHTML(r, editable=false) {
   const acts = editable
     ? `<td style="white-space:nowrap"><button class="act-btn" title="編集" onclick="openEdit(${r.id})">✏️</button><button class="act-btn" title="削除" onclick="deleteRecord(${r.id})">🗑</button></td>`
     : '';
-  return `<tr><td>${r.date.slice(5)}</td><td>${r.place}</td><td style="font-size:11px">${r.type}</td><td><span class="bk b${r.rank_num}">${r.rank_num}</span></td>${scoreCell(r.score)}${acts}</tr>`;
+  const evBadge = r.event_name ? ` <span class="ev-tag">${r.event_name}</span>` : '';
+  return `<tr><td style="white-space:nowrap">${r.date.slice(5)}${evBadge}</td><td>${r.place}</td><td style="font-size:11px">${r.type}</td><td><span class="bk b${r.rank_num}">${r.rank_num}</span></td>${scoreCell(r.score)}${acts}</tr>`;
 }
 function updateHeaderCount() {
   const el = $('hdr-cnt');
@@ -522,6 +529,20 @@ function renderDash() {
     (mo==='all'||r.date.slice(5,7)===mo) &&
     (selectedPlaces.size===0||selectedPlaces.has(r.place))
   );
+  // 期間表示
+  const periodEl = $('dm-period');
+  if (periodEl) {
+    if (d.length) {
+      const dates = d.map(r=>r.date).sort();
+      const f=dates[0], l=dates[dates.length-1];
+      const fmt2 = s => s.slice(0,4)+'年'+parseInt(s.slice(5,7))+'月'+parseInt(s.slice(8,10))+'日';
+      const evCount = d.filter(r=>r.event_name).length;
+      const evStr = evCount ? ` ／ 大会・イベント ${evCount}件` : '';
+      periodEl.innerHTML = `<strong>${fmt2(f)} 〜 ${fmt2(l)}</strong><span style="color:var(--text3)">${d.length}件${evStr}</span>`;
+    } else {
+      periodEl.innerHTML = '<span style="color:var(--text3)">データなし</span>';
+    }
+  }
   const s=stats(d);
   $('dm').innerHTML = metHTML(s);
   rdist('dr', s);
@@ -555,10 +576,11 @@ async function doAdd() {
   const date=$('a-date').value, plEl=$('a-place');
   const place=plEl.value==='__custom__'?$('a-custom').value.trim():plEl.value;
   const type=$('a-type').value, rn=parseInt($('a-rank').value), score=parseInt($('a-score').value)||0;
+  const event_name=($('a-event')?$('a-event').value.trim():'');
   if (!date||!place) { alert('日付と場所を入力してください'); return; }
   // 楽観的更新: 先にUIを反映
   const tempId = -(performance.now() * 1000 | 0);
-  DATA.push({id:tempId, date, place, type, rank_num:rn, score});
+  DATA.push({id:tempId, date, place, type, rank_num:rn, score, event_name});
   DATA.sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
   if (plEl.value === '__custom__') { saveCustomPlace(place); refreshAddPlaceSelect(place); }
   $('a-score').value='';
@@ -570,7 +592,7 @@ async function doAdd() {
   const btn=$('add-submit-btn');
   btn.disabled=true;
   try {
-    const rec = await insertOne({date, place, type, rank_num:rn, score});
+    const rec = await insertOne({date, place, type, rank_num:rn, score, event_name});
     const idx=DATA.findIndex(x=>x.id===tempId);
     if(idx!==-1) DATA[idx]=rec;
   } catch(e) {
@@ -603,6 +625,7 @@ function openEdit(id) {
   $('e-custom').value=isPreset?'':r.place;
   $('e-custom-wrap').style.display=isPreset?'none':'flex';
   $('e-type').value=r.type; updateRankOptions('e-type','e-rank'); $('e-rank').value=r.rank_num; $('e-score').value=r.score;
+  $('e-event').value=r.event_name||'';
   $('edit-modal').classList.add('on');
 }
 function closeEditModal() { editingId=null; $('edit-modal').classList.remove('on'); }
@@ -613,17 +636,18 @@ async function saveEdit() {
   const date=$('e-date').value;
   const place=$('e-place').value==='__custom__'?$('e-custom').value.trim():$('e-place').value;
   const type=$('e-type').value, rank_num=parseInt($('e-rank').value), score=parseInt($('e-score').value)||0;
+  const event_name=($('e-event')?$('e-event').value.trim():'');
   if (!date||!place) { alert('日付と場所を入力してください'); return; }
   const savedId=editingId, prev={...DATA[idx]};
   // 楽観的更新: 先にUIを反映してモーダルを閉じる
-  DATA[idx]={...DATA[idx],date,place,type,rank_num,score};
+  DATA[idx]={...DATA[idx],date,place,type,rank_num,score,event_name};
   closeEditModal(); renderHist();
   if(tab==='dashboard') renderDash();
   refreshFilters(); updateHeaderCount();
   // バックグラウンドで保存
   operating=true;
   try {
-    await updateOne(savedId,{date,place,type,rank_num,score});
+    await updateOne(savedId,{date,place,type,rank_num,score,event_name});
   } catch(e) {
     DATA[idx]=prev;
     renderHist(); if(tab==='dashboard') renderDash();
@@ -678,7 +702,7 @@ function parseCSV() {
     if (/^(日付|date)/i.test(line)) continue; // ヘッダー行スキップ
     const parts = line.split(/[,，\t]/);
     if (parts.length < 5) { errors.push(line); continue; }
-    let [date, place, type, rank, score] = parts.map(p => p.trim());
+    let [date, place, type, rank, score, event_name=''] = parts.map(p => p.trim());
     // 日付: MM-DD → YYYY-MM-DD に補完
     if (/^\d{2}-\d{2}$/.test(date)) date = `${curYear}-${date}`;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { errors.push(line); continue; }
@@ -690,7 +714,7 @@ function parseCSV() {
     const scoreNum = parseInt(score);
     const maxRank = type === '三麻' ? 3 : 4;
     if (!place || rank_num < 1 || rank_num > maxRank || isNaN(scoreNum)) { errors.push(line); continue; }
-    csvRows.push({ date, place, type, rank_num, score: scoreNum });
+    csvRows.push({ date, place, type, rank_num, score: scoreNum, event_name });
   }
 
   if (csvRows.length === 0) {
@@ -810,6 +834,7 @@ async function init(){
       <div id="dp-chips" style="display:flex;flex-wrap:wrap;gap:4px"></div>
     </div>
   </div>
+  <div class="dash-period" id="dm-period"></div>
   <div class="mts" id="dm"></div>
   <div style="margin-bottom:16px">
     <div class="sec-label">順位分布</div>
@@ -883,6 +908,7 @@ async function init(){
       <div class="ff"><label>種別</label><select id="a-type" onchange="updateRankOptions('a-type','a-rank')"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
       <div class="ff"><label>順位</label><select id="a-rank"><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select></div>
       <div class="ff"><label>持ち点</label><input class="score-input" type="text" id="a-score" placeholder="タップして入力" readonly onclick="openCalc('a-score')"></div>
+      <div class="ff" style="grid-column:1/-1"><label>大会/イベント名 <span style="font-weight:400;color:var(--text3)">（任意）</span></label><input type="text" id="a-event" placeholder="例: 春の大会、ZENTSU杯" style="width:100%"></div>
     </div>
     <button class="sub" id="add-submit-btn" onclick="doAdd()">+ 追加する</button>
     <div id="add-ok" class="ok" style="display:none">✓ 追加しました！</div>
@@ -892,11 +918,11 @@ async function init(){
   <div class="af">
     <div class="af-title">📝 テキストから一括追加</div>
     <p style="font-size:12px;color:var(--text2);margin-bottom:8px">以下の形式でデータを入力・貼り付けてください（カンマ区切り）：</p>
-    <pre style="font-size:11px;background:var(--bg2);padding:8px 10px;border-radius:8px;margin-bottom:10px;color:var(--text2);overflow-x:auto;white-space:pre-wrap">日付,場所,種別,順位,持ち点
+    <pre style="font-size:11px;background:var(--bg2);padding:8px 10px;border-radius:8px;margin-bottom:10px;color:var(--text2);overflow-x:auto;white-space:pre-wrap">日付,場所,種別,順位,持ち点,大会名(任意)
 2026-05-18,セット,四麻,1,45000
-05-19,フリー,三麻,2,32000
+05-19,フリー,三麻,2,32000,春の大会
 05-20,雀魂,4,1,48000</pre>
-    <p style="font-size:11px;color:var(--text3);margin-bottom:8px">※ 日付はMM-DDでも可（年は自動補完）。種別は「四」「4」「三」「3」でもOK。</p>
+    <p style="font-size:11px;color:var(--text3);margin-bottom:8px">※ 日付はMM-DDでも可（年は自動補完）。種別は「四」「4」「三」「3」でもOK。6列目に大会名を入れると大会戦として記録されます。</p>
     <textarea id="csv-input" placeholder="ここにデータを貼り付け..." style="width:100%;height:140px;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:monospace;resize:vertical"></textarea>
     <button class="sub" style="margin-top:8px" onclick="parseCSV()">📋 プレビュー確認</button>
     <div id="csv-status" class="ustatus" style="display:none"></div>
