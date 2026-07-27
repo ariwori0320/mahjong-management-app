@@ -187,7 +187,7 @@ tr:last-child td { border-bottom: none; }
       <div class="ff"><label>種別</label><select id="e-type" onchange="updateRankOptions('e-type','e-rank')"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
       <div class="ff"><label>順位</label><select id="e-rank"><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select></div>
       <div class="ff"><label>持ち点</label><input class="score-input" type="text" id="e-score" placeholder="タップして入力" readonly onclick="openCalc('e-score')"></div>
-      <div class="ff" style="grid-column:1/-1"><label>大会/イベント名</label><input type="text" id="e-event" placeholder="（任意）例: 春の大会、ZENTSU杯" style="width:100%"></div>
+      <div id="e-event-wrap" class="ff" style="grid-column:1/-1;padding:6px 8px;border-radius:8px;border:1px solid transparent;transition:border-color .15s,background .15s"><label>大会/イベント名 <span style="font-weight:400;color:var(--text3)">（任意）</span></label><input type="text" id="e-event" placeholder="例: 春の大会、ZENTSU杯" style="width:100%"></div>
     </div>
     <div id="edit-err" style="display:none;color:var(--red);font-size:12px;margin-bottom:8px;text-align:center"></div>
     <div class="modal-footer">
@@ -207,7 +207,8 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // ===== 定数 =====
 const LS_MIGRATE = 'mahjong_data_v1';
 const LS_CUSTOM_PLACES = 'mahjong_custom_places';
-const PLACES_PRESET = ['セット','フリー','ロケット団','雀魂','日本オープン','ZENTSU大会'];
+const PLACES_PRESET = ['セット','フリー','ロケット団','雀魂','日本オープン','ZENTSU大会','大会','イベント戦'];
+const EVENT_PLACES = new Set(['大会','イベント戦']);
 
 let _customPlacesCache = null;
 function loadCustomPlaces() {
@@ -604,8 +605,20 @@ async function doAdd() {
   finally { btn.disabled=false; operating=false; }
 }
 
-function toggleCustom() { $('a-custom-wrap').style.display=$('a-place').value==='__custom__'?'flex':'none'; }
-function toggleEditCustom() { $('e-custom-wrap').style.display=$('e-place').value==='__custom__'?'flex':'none'; }
+function toggleCustom() {
+  $('a-custom-wrap').style.display=$('a-place').value==='__custom__'?'flex':'none';
+  const isEv = EVENT_PLACES.has($('a-place').value);
+  const evWrap=$('a-event-wrap');
+  if(evWrap) { evWrap.style.borderColor=isEv?'var(--blue)':''; evWrap.style.background=isEv?'rgba(212,168,67,.07)':''; }
+  if(isEv && $('a-event')) setTimeout(()=>$('a-event').focus(), 50);
+}
+function toggleEditCustom() {
+  $('e-custom-wrap').style.display=$('e-place').value==='__custom__'?'flex':'none';
+  const isEv = EVENT_PLACES.has($('e-place').value);
+  const evWrap=$('e-event-wrap');
+  if(evWrap) { evWrap.style.borderColor=isEv?'var(--blue)':''; evWrap.style.background=isEv?'rgba(212,168,67,.07)':''; }
+  if(isEv && $('e-event')) setTimeout(()=>$('e-event').focus(), 50);
+}
 
 function refreshFilters() {
   const ps=places(), ms=months();
@@ -908,7 +921,7 @@ async function init(){
       <div class="ff"><label>種別</label><select id="a-type" onchange="updateRankOptions('a-type','a-rank')"><option value="四麻">四麻</option><option value="三麻">三麻</option></select></div>
       <div class="ff"><label>順位</label><select id="a-rank"><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select></div>
       <div class="ff"><label>持ち点</label><input class="score-input" type="text" id="a-score" placeholder="タップして入力" readonly onclick="openCalc('a-score')"></div>
-      <div class="ff" style="grid-column:1/-1"><label>大会/イベント名 <span style="font-weight:400;color:var(--text3)">（任意）</span></label><input type="text" id="a-event" placeholder="例: 春の大会、ZENTSU杯" style="width:100%"></div>
+      <div id="a-event-wrap" class="ff" style="grid-column:1/-1;padding:6px 8px;border-radius:8px;border:1px solid transparent;transition:border-color .15s,background .15s"><label>大会/イベント名 <span style="font-weight:400;color:var(--text3)">（任意）</span></label><input type="text" id="a-event" placeholder="例: 春の大会、ZENTSU杯" style="width:100%"></div>
     </div>
     <button class="sub" id="add-submit-btn" onclick="doAdd()">+ 追加する</button>
     <div id="add-ok" class="ok" style="display:none">✓ 追加しました！</div>
